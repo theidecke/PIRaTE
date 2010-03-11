@@ -1,9 +1,12 @@
+{-# Language ParallelListComp #-}
+
 module UCStream (
     UCStream,
-    UCStreamTree,
+    mapSplit,
+    PerturbationTree(..),
     forwardToPertHead,
-    perturbedUCStreams,
-    unitCoordinatesTreeFromGen,
+    dropPertHead,
+    perturbationTreeFromGen,
     UCStreamTo,
     getCoord
   ) where
@@ -20,6 +23,8 @@ module UCStream (
   splitInfinitely :: PureMT -> [PureMT]
   splitInfinitely = map pureMT . randomStream randomWord64
   
+  mapSplit f g = map f (splitInfinitely g)
+  
   randomUCStream :: PureMT -> UCStream
   randomUCStream = randomStream randomDouble
 
@@ -29,28 +34,28 @@ module UCStream (
   accumulatedPerturbedUCStreams :: PureMT ->[UCStream]
   accumulatedPerturbedUCStreams g = scanl step r0 rs where
     step = perturbUCStream defaultPerturbation
-    (r0:rs) = map randomUCStream (splitInfinitely g)
+    (r0:rs) = mapSplit randomUCStream g
 
-  data UCStreamTree = UCStreamTree {
-    currentUCStream :: UCStream,
-    perturbedUCStreams :: [UCStreamTree]
+  data PerturbationTree = PerturbationTree {
+    currentUCStreams :: [UCStream],
+    variations :: [PerturbationTree]
   }
   
-  forwardToPertHead stree = head (perturbedUCStreams stree)
-  dropPertHead (UCStreamTree cs (p:ps)) = UCStreamTree cs ps
+  forwardToPertHead stree = head (variations stree)
+  dropPertHead (PerturbationTree cs (p:ps)) = PerturbationTree cs ps
 
-  unitCoordinatesTreeFromGen :: PureMT -> UCStreamTree
-  unitCoordinatesTreeFromGen g = constructTree s0 g1 where
-    s0 = randomUCStream g2
+  perturbationTreeFromGen :: PureMT -> PerturbationTree
+  perturbationTreeFromGen g = constructTree s0 g1 where
+    s0 = mapSplit randomUCStream g2
     (g1:g2:_) = splitInfinitely g
 
-  constructTree :: UCStream -> PureMT -> UCStreamTree
-  constructTree s0 g = UCStreamTree s0 trees where
+  constructTree :: [UCStream] -> PureMT -> PerturbationTree
+  constructTree s0 g = PerturbationTree s0 trees where
     trees = zipWith constructTree pss gs1
-    pss = map (perturbWith . randomUCStream) gs2
-    gs2 = splitInfinitely g'
+    pss = [[s `perturbedWith` r | s<-s0 | r<-rs] | rs<-rss]
+    rss = mapSplit (mapSplit randomUCStream) g'
     (g':gs1) = splitInfinitely g
-    perturbWith = perturbUCStream defaultPerturbation s0
+    perturbedWith = perturbUCStream defaultPerturbation
 
   type UCStreamTo = State UCStream
   type Perturbation = Double -> UCStreamTo Double
