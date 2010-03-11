@@ -1,4 +1,12 @@
-module PerturbationStreams where
+module UCStream (
+    UCStream,
+    UCStreamTree,
+    forwardToPertHead,
+    perturbedUCStreams,
+    unitCoordinatesTreeFromGen,
+    UCStreamTo,
+    getCoord
+  ) where
 
   import Data.Word (Word64)
   import Data.List (unfoldr)

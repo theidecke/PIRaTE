@@ -1,6 +1,6 @@
 module Playground where
 
-  import PerturbationStreams
+  import UCStream
   
   class MetropolisDistribution a where
     -- | construct a sample from an infinite streams of infinite random numbers ∈ [0,1]
