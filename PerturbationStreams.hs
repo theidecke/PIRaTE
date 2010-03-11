@@ -7,68 +7,71 @@ module PerturbationStreams where
   
   randomStream :: (PureMT -> (a, PureMT)) -> PureMT -> [a]
   randomStream rndstep g = unfoldr (Just . rndstep) g
-  
-  type Stream = [Double]
-  type StreamState a = State Stream a
 
-  getCoord :: StreamState Double
-  getCoord = do
-    gen <- get
-    let (coord:gen') = gen
-    put gen'
-    return coord
-
-  randomDoubleStream :: PureMT -> Stream
-  randomDoubleStream = randomStream randomDouble
-  
   -- | split the generator into an infinite list of generators
   splitInfinitely :: PureMT -> [PureMT]
   splitInfinitely = map pureMT . randomStream randomWord64
+  
+  randomUCStream :: PureMT -> UCStream
+  randomUCStream = randomStream randomDouble
 
-  accumulatedPerturbedStreams :: PureMT ->[Stream]
-  accumulatedPerturbedStreams g = scanl step r0 rs where
-    step = perturbStream defaultPerturbation
-    (r0:rs) = map randomDoubleStream (splitInfinitely g)
+  -- | UnitCoordinatesStream
+  type UCStream = [Double]
 
-  data StreamTree = StreamTree {
-    currentStream :: Stream,
-    perturbedStreams :: [StreamTree]
+  accumulatedPerturbedUCStreams :: PureMT ->[UCStream]
+  accumulatedPerturbedUCStreams g = scanl step r0 rs where
+    step = perturbUCStream defaultPerturbation
+    (r0:rs) = map randomUCStream (splitInfinitely g)
+
+  data UCStreamTree = UCStreamTree {
+    currentUCStream :: UCStream,
+    perturbedUCStreams :: [UCStreamTree]
   }
   
-  forwardToPertHead stree = head (perturbedStreams stree)
-  dropPertHead (StreamTree cs (p:ps)) = StreamTree cs ps
+  forwardToPertHead stree = head (perturbedUCStreams stree)
+  dropPertHead (UCStreamTree cs (p:ps)) = UCStreamTree cs ps
 
-  streamTreeFromGen :: PureMT -> StreamTree
-  streamTreeFromGen g = constructTree s0 g1 where
-    s0 = randomDoubleStream g2
+  unitCoordinatesTreeFromGen :: PureMT -> UCStreamTree
+  unitCoordinatesTreeFromGen g = constructTree s0 g1 where
+    s0 = randomUCStream g2
     (g1:g2:_) = splitInfinitely g
 
-  constructTree :: Stream -> PureMT -> StreamTree
-  constructTree s0 g = StreamTree s0 trees where
+  constructTree :: UCStream -> PureMT -> UCStreamTree
+  constructTree s0 g = UCStreamTree s0 trees where
     trees = zipWith constructTree pss gs1
-    pss = map (perturbWith . randomDoubleStream) gs2
+    pss = map (perturbWith . randomUCStream) gs2
     gs2 = splitInfinitely g'
     (g':gs1) = splitInfinitely g
-    perturbWith = perturbStream defaultPerturbation s0
+    perturbWith = perturbUCStream defaultPerturbation s0
 
-  type Perturbation = (Double,Stream) -> (Double,Stream)
+  type UCStreamTo = State UCStream
+  type Perturbation = Double -> UCStreamTo Double
 
-  perturbStream :: Perturbation -> Stream -> Stream -> Stream
-  perturbStream p (c:cs) rs = c' : perturbStream p cs rs' where
-    (c',rs') = p (c,rs)
+  perturbUCStream :: Perturbation -> UCStream -> UCStream -> UCStream
+  perturbUCStream p cs rs = evalState (mapM p cs) rs
 
-  defaultPerturbation :: Perturbation
   defaultPerturbation = expPerturbation 0.001 0.01
-  
-  expPerturbation s1 s2 (x,rs) = (x',rs') where
-    x' = wrap x''
-    x'' | r1<0.5    = x+dx
-        | otherwise = x-dx
-    dx = s2*(exp (-(log (s2/s1))*r2))
-    (r1:r2:rs') = rs
-    wrap x | x<0 = wrap (x+1)
-           | x>1 = wrap (x-1)
-           | otherwise = x
 
-  teststream :: Stream
-  teststream = randomDoubleStream $ pureMT 17
+  expPerturbation :: Double -> Double -> Double -> UCStreamTo Double
+  expPerturbation s1 s2 x = do
+    r1 <- getCoord
+    let dx = s2*(exp (-(log (s2/s1))*r1))
+    r2 <- getCoord
+    let x' | r2<0.5    = x+dx
+           | otherwise = x-dx
+        x'' = wrap x'
+    return x''
+
+  wrap x | x<0 = wrap (x+1)
+         | x>1 = wrap (x-1)
+         | otherwise = x
+
+  getCoord :: UCStreamTo Double
+  getCoord = do
+    coords <- get
+    let (c:coords') = coords
+    put coords'
+    return c
+  
+  toStream :: Word64 -> UCStream
+  toStream seed = randomUCStream $ pureMT seed
