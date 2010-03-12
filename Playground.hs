@@ -24,7 +24,8 @@ module Playground where
   data MetropolisState = MetropolisState {
     msTree :: PerturbationTree,
     currentSampleWeight :: Double,
-    acceptanceDecisions :: UCStream
+    decisions :: UCStream,
+    freshTrees :: [PerturbationTree]
   }
   
   validSamplesAndTrees :: MetropolisDistribution a b => a -> [PerturbationTree] -> [(Sampled b, PerturbationTree)]
@@ -37,20 +38,45 @@ module Playground where
   metropolis mdist seed = initialsample : unfoldr step initialstate where
     step = Just . metropolisStep mdist
     initialsample = unitWeighing . sampledValue $ initialsample'
-    initialstate = MetropolisState initialtree 0 acceptancedecisions
+    initialstate = MetropolisState initialtree 0 decisions freshtrees
+    freshtrees = mapSplit perturbationTreeFromGen g3
     (initialsample',initialtree) = head . validSamplesAndTrees mdist $ trees
     trees = mapSplit perturbationTreeFromGen g1 --possible starttrees
-    acceptancedecisions = randomUCStream g2
-    (g1:g2:_) = mapSplit id g
+    decisions = randomUCStream g2
+    (g1:g2:g3:_) = mapSplit id g
     g = pureMT seed
 
   type MetropolisStepResult b = (Weighted b, MetropolisState)
-
+  
+  freshStepProbability = 0.5
+  
   metropolisStep :: MetropolisDistribution a b => a -> MetropolisState -> MetropolisStepResult b
-  metropolisStep mdist ms@(MetropolisState tree csw ads)
-    | isNothing mnewsample = metropolisStep mdist (MetropolisState nextvariation csw ads) --retry until we construct a valid sample
-    | acceptnewsample = (nsw `poundsOf` csv, MetropolisState headvariation a   ds)
-    | otherwise       = (  a `poundsOf` nsv, MetropolisState nextvariation nsw ds)
+  metropolisStep mdist (MetropolisState tree csw (d:ds) fts)
+    | freshstep =        freshStep mdist (MetropolisState tree csw ds fts)
+    | otherwise = perturbationStep mdist (MetropolisState tree csw ds fts)
+    where freshstep = d < freshStepProbability
+  
+  freshStep :: MetropolisDistribution a b => a -> MetropolisState -> MetropolisStepResult b
+  freshStep mdist (MetropolisState tree csw decisions (ft:fts))
+    | isNothing mnewsample = freshStep mdist (MetropolisState tree csw decisions fts) --retry until we construct a valid sample
+    | acceptnewsample = (nsw `poundsOf` csv, MetropolisState   ft   a ds fts)
+    | otherwise       = (  a `poundsOf` nsv, MetropolisState tree nsw ds fts)
+    where
+      acceptnewsample = decision <= a
+      nsw = csw + (1-a)
+      a = computeAcceptanceProbability currentsample newsample
+      nsv = sampledValue newsample
+      csv = sampledValue currentsample
+      newsample = fromJust mnewsample
+      mnewsample         = constructSampleFromTreeRoot mdist ft
+      Just currentsample = constructSampleFromTreeRoot mdist tree
+      (decision:ds) = decisions
+  
+  perturbationStep :: MetropolisDistribution a b => a -> MetropolisState -> MetropolisStepResult b
+  perturbationStep mdist (MetropolisState tree csw decisions fts)
+    | isNothing mnewsample = perturbationStep mdist (MetropolisState nextvariation csw decisions fts) --retry until we construct a valid sample
+    | acceptnewsample = (nsw `poundsOf` csv, MetropolisState headvariation   a ds fts)
+    | otherwise       = (  a `poundsOf` nsv, MetropolisState nextvariation nsw ds fts)
     where
       acceptnewsample = decision <= a
       nsw = csw + (1-a)
@@ -62,7 +88,7 @@ module Playground where
       Just currentsample = constructSampleFromTreeRoot mdist tree
       headvariation = forwardToPertHead tree
       nextvariation = dropPertHead tree
-      (decision:ds) = ads
+      (decision:ds) = decisions
   
   computeAcceptanceProbability :: (Sampled b) -> (Sampled b) -> Double
   computeAcceptanceProbability s1 s2 = min 1 $ (sampledImportance s2) / (sampledImportance s1)
@@ -86,4 +112,4 @@ module Playground where
       r   = u1
       phi = 2*pi*u2
 
-  -- concatMap ((\(w,(x,y))->printf "{%f,{%f,%f}}," w x y)) . take 20000 . metropolis TestProblem2 $ 46 :: String
+  -- concatMap ((\(w,(x,y))->printf "{%f,{%f,%f}}," w x y)) . take 10000 . metropolis Gauss2DCartesian $ 46 :: String
