@@ -2,6 +2,7 @@
 
 module UCStream (
     UCStream,
+    randomUCStream,
     mapSplit,
     PerturbationTree(..),
     forwardToPertHead,
@@ -63,7 +64,7 @@ module UCStream (
   perturbUCStream :: Perturbation -> UCStream -> UCStream -> UCStream
   perturbUCStream p cs rs = evalState (mapM p cs) rs
 
-  defaultPerturbation = expPerturbation 0.001 0.01
+  defaultPerturbation = expPerturbation 0.002 0.05
 
   expPerturbation :: Double -> Double -> Double -> UCStreamTo Double
   expPerturbation s1 s2 x = do
