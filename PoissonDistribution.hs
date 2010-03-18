@@ -10,7 +10,9 @@ module PoissonDistribution (
   
   newtype PoissonDistribution = PoissonDistribution Double
   poissonDistFromLambda l = PoissonDistribution l
-    
+
+  -- | implemented simple poisson sampling algorithm from:
+  -- | Donald E. Knuth: Seminumerical Algorithms. The Art of Computer Programming, Volume 2
   instance Sampleable PoissonDistribution Int where
     sampleFrom (PoissonDistribution lambda) = do
       poissonsample <- poissonStep (exp (-lambda)) 0 1
