@@ -1,4 +1,4 @@
-{-# Language ParallelListComp #-}
+{-# LANGUAGE ParallelListComp #-}
 
 module UCStream (
     UCStream,
