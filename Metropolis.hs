@@ -1,11 +1,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE BangPatterns #-}
 
-module Playground where
+module Metropolis where
 
   import Data.Word (Word64)
-  import Data.List (unfoldr)
+  import Data.List (unfoldr,foldl')
   import Data.Maybe (isNothing,isJust,fromJust)
   import System.Random.Mersenne.Pure64
   import UCStream
@@ -16,10 +17,6 @@ module Playground where
     -- | construct a sample (with importance) from an infinite number of streams
     -- | of infinite supply of random numbers ∈ [0,1]
     constructSampleWithImportance :: a -> [UCStream] -> Maybe (Sampled b)
-
-  type Weighted a = (Double,a)
-  unitWeighing x = (1,x)
-  poundsOf w x = (w,x)
 
   data MetropolisState = MetropolisState {
     msTree :: PerturbationTree,
@@ -33,7 +30,7 @@ module Playground where
     filterJust ((Nothing,_):sts) = filterJust sts
     filterJust (( Just s,t):sts) = (s,t) : filterJust sts
     samples = map (constructSampleFromTreeRoot mdist) trees
-  
+
   metropolis :: MetropolisDistribution a b => a -> Word64 -> [Weighted b]
   metropolis mdist seed = initialsample : unfoldr step initialstate where
     step = Just . metropolisStep mdist
@@ -105,11 +102,30 @@ module Playground where
   data Gauss2DPolar = Gauss2DPolar
   instance MetropolisDistribution Gauss2DPolar (Double,Double) where
     constructSampleWithImportance _ ((u1:u2:_):_) = Just $ value `withImportance` importance where
-      importance = contribution / probability
+      importance = contribution * absjacdet
       contribution = exp . negate . (30*) $ r^2
       value = (r*(cos phi),r*(sin phi))
-      probability = 1/r
+      absjacdet = r  -- dA = r*dr*dphi
       r   = u1
       phi = 2*pi*u2
 
   -- concatMap ((\(w,(x,y))->printf "{%f,{%f,%f}}," w x y)) . take 10000 . metropolis Gauss2DCartesian $ 46 :: String
+  type Weighted a = (Double,a)
+  unitWeighing x = (1,x)
+  poundsOf w x = (w,x)
+  weightedWeight = fst
+  weightedValue = snd
+  
+  expectationValue :: (a->Double) -> [Weighted a] -> Double
+  expectationValue _ [] = error "can't compute expectation value without samples"
+  expectationValue f samples = wv/tw where
+    (tw,wv) = foldl' step (0,0) samples
+    step (accweight,accvalue) (!weight,!sample) = (accweight',accvalue') where
+      accweight' = accweight + weight
+      accvalue'  = accvalue  + weight*(f sample)
+
+      
+      
+      
+      
+      
