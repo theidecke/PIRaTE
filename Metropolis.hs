@@ -1,6 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE BangPatterns #-}
 
 module Metropolis where
@@ -48,10 +47,9 @@ module Metropolis where
   freshStepProbability = 0.5
   
   metropolisStep :: MetropolisDistribution a b => a -> MetropolisState -> MetropolisStepResult b
-  metropolisStep mdist (MetropolisState tree csw (d:ds) fts)
-    | freshstep =        freshStep mdist (MetropolisState tree csw ds fts)
-    | otherwise = perturbationStep mdist (MetropolisState tree csw ds fts)
-    where freshstep = d < freshStepProbability
+  metropolisStep mdist (MetropolisState tree csw (d:ds) fts) = stepresult
+    where stepresult = step mdist (MetropolisState tree csw ds fts)
+          step = if d < freshStepProbability then freshStep else perturbationStep
   
   freshStep :: MetropolisDistribution a b => a -> MetropolisState -> MetropolisStepResult b
   freshStep mdist (MetropolisState tree csw decisions (ft:fts))
@@ -92,24 +90,6 @@ module Metropolis where
   
   constructSampleFromTreeRoot mdist = constructSampleWithImportance mdist . currentUCStreams
 
-  data Gauss2DCartesian = Gauss2DCartesian
-  instance MetropolisDistribution Gauss2DCartesian (Double,Double) where
-    constructSampleWithImportance _ ((u1:u2:_):_) = Just $ value `withImportance` importance where
-      value = (x,y)
-      (x,y) = (2*u1-1,2*u2-1)
-      importance = exp . negate . (30*) $ x^2 + y^2
-
-  data Gauss2DPolar = Gauss2DPolar
-  instance MetropolisDistribution Gauss2DPolar (Double,Double) where
-    constructSampleWithImportance _ ((u1:u2:_):_) = Just $ value `withImportance` importance where
-      importance = contribution * absjacdet
-      contribution = exp . negate . (30*) $ r^2
-      value = (r*(cos phi),r*(sin phi))
-      absjacdet = r  -- dA = r*dr*dphi
-      r   = u1
-      phi = 2*pi*u2
-
-  -- concatMap ((\(w,(x,y))->printf "{%f,{%f,%f}}," w x y)) . take 10000 . metropolis Gauss2DCartesian $ 46 :: String
   type Weighted a = (Double,a)
   unitWeighing x = (1,x)
   poundsOf w x = (w,x)
