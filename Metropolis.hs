@@ -13,13 +13,14 @@ module Metropolis where
   import Sampled
 
 
-  class MetropolisDistribution a b | a -> b where
+  class (Show b) => MetropolisDistribution a b | a -> b where
     -- | construct a sample (with importance) from an infinite number of streams
     -- | of infinite supply of random numbers ∈ [0,1]
     constructSampleWithImportance :: a -> [UCStream] -> Maybe (Sampled b)
 
-  data MetropolisState = MetropolisState {
+  data MetropolisState b = MetropolisState {
     msTree :: PerturbationTree,
+    currentSample :: (Sampled b),
     currentSampleWeight :: Double,
     decisions :: UCStream,
     freshTrees :: [PerturbationTree]
@@ -34,8 +35,8 @@ module Metropolis where
   metropolis :: MetropolisDistribution a b => a -> Word64 -> [Weighted b]
   metropolis mdist seed = initialsample : evalState (sequence . repeat $ step) initialstate where
     step = metropolisStep mdist
+    initialstate = MetropolisState initialtree initialsample 0 decisions freshtrees
     initialsample = unitWeighing . sampledValue $ initialsample'
-    initialstate = MetropolisState initialtree 0 decisions freshtrees
     freshtrees = mapSplit perturbationTreeFromGen g3
     (initialsample',initialtree) = head . validSamplesAndTrees mdist $ trees
     trees = mapSplit perturbationTreeFromGen g1 --possible starttrees
@@ -43,7 +44,7 @@ module Metropolis where
     (g1:g2:g3:_) = mapSplit id g
     g = pureMT seed
 
-  metropolisStep :: MetropolisDistribution a b => a -> State MetropolisState (Weighted b)
+  metropolisStep :: MetropolisDistribution a b => a -> State (MetropolisState b) (Weighted b)
   metropolisStep mdist = do
     d <- getDecision
     let step = if d < freshStepProbability then freshStep else perturbationStep
@@ -51,13 +52,15 @@ module Metropolis where
 
   freshStepProbability = 0.7
   
-  perturbationStep :: MetropolisDistribution a b => a -> State MetropolisState (Weighted b)
+  perturbationStep :: MetropolisDistribution a b => a -> State (MetropolisState b) (Weighted b)
   perturbationStep = metropolisStepFromTreeProposal getPerturbedTree
 
-  freshStep        :: MetropolisDistribution a b => a -> State MetropolisState (Weighted b)
+  freshStep        :: MetropolisDistribution a b => a -> State (MetropolisState b) (Weighted b)
   freshStep        = metropolisStepFromTreeProposal getFreshTree
 
-  metropolisStepFromTreeProposal :: MetropolisDistribution a b => State MetropolisState PerturbationTree -> a -> State MetropolisState (Weighted b)
+  metropolisStepFromTreeProposal :: MetropolisDistribution a b => State (MetropolisState b) PerturbationTree
+                                                               -> a
+                                                               -> State (MetropolisState b) (Weighted b)
   metropolisStepFromTreeProposal proposeTree mdist = do
     treeproposal <- proposeTree
     let mnewsample = constructSampleFromTreeRoot mdist treeproposal
@@ -65,9 +68,9 @@ module Metropolis where
       then metropolisStep mdist
       else do
         tree <- getCurrentTree
+        currentsample <- getCurrentSample
         csw <- getCurrentSampleWeight
-        let Just currentsample = constructSampleFromTreeRoot mdist tree
-            newsample = fromJust mnewsample
+        let newsample = fromJust mnewsample
             a = computeAcceptanceProbability currentsample newsample
             nsw = csw + (1-a)
         d <- getDecision
@@ -75,6 +78,7 @@ module Metropolis where
         if acceptnewsample
           then do
             substituteCurrentTreeWith treeproposal
+            substituteCurrentSampleWith newsample
             substituteCurrentSampleWeightWith a
             let csv = sampledValue currentsample
             return $ nsw `poundsOf` csv
@@ -83,17 +87,22 @@ module Metropolis where
             let nsv = sampledValue newsample
             return $   a `poundsOf` nsv
 
-  getCurrentTree :: State MetropolisState PerturbationTree
+  getCurrentTree :: State (MetropolisState b) PerturbationTree
   getCurrentTree = do
     state <- get
     return $ msTree state
 
-  getCurrentSampleWeight :: State MetropolisState Double
+  getCurrentSample :: State (MetropolisState b) (Sampled b)
+  getCurrentSample = do
+    state <- get
+    return $ currentSample state
+
+  getCurrentSampleWeight :: State (MetropolisState b) Double
   getCurrentSampleWeight = do
     state <- get
     return $ currentSampleWeight state
 
-  getFreshTree :: State MetropolisState PerturbationTree
+  getFreshTree :: State (MetropolisState b) PerturbationTree
   getFreshTree = do
     state <- get
     let (ft:fts) = freshTrees state
@@ -101,7 +110,7 @@ module Metropolis where
     put state'
     return ft
 
-  getPerturbedTree :: State MetropolisState PerturbationTree
+  getPerturbedTree :: State (MetropolisState b) PerturbationTree
   getPerturbedTree = do
     tree <- getCurrentTree
     let headvariation = forwardToPertHead tree
@@ -109,7 +118,7 @@ module Metropolis where
     substituteCurrentTreeWith tree'
     return headvariation
 
-  getDecision :: State MetropolisState Double
+  getDecision :: State (MetropolisState b) Double
   getDecision = do
     state <- get
     let (d:ds) = decisions state
@@ -117,13 +126,19 @@ module Metropolis where
     put state'
     return d
 
-  substituteCurrentSampleWeightWith :: Double -> State MetropolisState ()
+  substituteCurrentSampleWeightWith :: Double -> State (MetropolisState b) ()
   substituteCurrentSampleWeightWith nsw = do
     state <- get
     let state' = state {currentSampleWeight = nsw}
     put state'
   
-  substituteCurrentTreeWith :: PerturbationTree -> State MetropolisState ()
+  substituteCurrentSampleWith :: (Sampled b) -> State (MetropolisState b) ()
+  substituteCurrentSampleWith ns = do
+    state <- get
+    let state' = state {currentSample = ns}
+    put state'
+  
+  substituteCurrentTreeWith :: PerturbationTree -> State (MetropolisState b) ()
   substituteCurrentTreeWith tree = do
     state <- get
     let state' = state {msTree = tree}
