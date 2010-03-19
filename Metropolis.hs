@@ -11,8 +11,8 @@ module Metropolis where
   import Control.Monad.State
   import UCStream
   import Sampled
-  
-  
+
+
   class MetropolisDistribution a b | a -> b where
     -- | construct a sample (with importance) from an infinite number of streams
     -- | of infinite supply of random numbers ∈ [0,1]
@@ -49,7 +49,7 @@ module Metropolis where
     let step = if d < freshStepProbability then freshStep else perturbationStep
     step mdist
 
-  freshStepProbability = 0.5
+  freshStepProbability = 0.7
   
   perturbationStep :: MetropolisDistribution a b => a -> State MetropolisState (Weighted b)
   perturbationStep = metropolisStepFromTreeProposal getPerturbedTree
@@ -87,7 +87,12 @@ module Metropolis where
   getCurrentTree = do
     state <- get
     return $ msTree state
-  
+
+  getCurrentSampleWeight :: State MetropolisState Double
+  getCurrentSampleWeight = do
+    state <- get
+    return $ currentSampleWeight state
+
   getFreshTree :: State MetropolisState PerturbationTree
   getFreshTree = do
     state <- get
@@ -111,11 +116,6 @@ module Metropolis where
         state' = state {decisions = ds}
     put state'
     return d
-  
-  getCurrentSampleWeight :: State MetropolisState Double
-  getCurrentSampleWeight = do
-    state <- get
-    return $ currentSampleWeight state
 
   substituteCurrentSampleWeightWith :: Double -> State MetropolisState ()
   substituteCurrentSampleWeightWith nsw = do
