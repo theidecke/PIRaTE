@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Main where
+  import Data.List (sortBy,groupBy)
   import System.Environment (getArgs)
   import Control.Monad.State (evalState)
   import Metropolis
@@ -50,3 +51,12 @@ module Main where
     
   -- expectationValue fromIntegral . take 100000 . metropolis (Poisson 4.0) $ 631
   -- take 100 . map snd . evalState (sequence . repeat $ sampleFrom (ConvenientDistribution 2.0)) . toStream $ 14 :: [Integer]
+  combineSamples :: [Weighted Integer] -> [Weighted Integer]
+  combineSamples = accumGroups . sortBy cmp where
+    cmp = (\(_,x) (_,y)-> compare x y)
+    accumGroups = map ((\(ws,is)->(sum ws,head is)) . unzip) . groupBy (\(_,x) (_,y)-> (==) x y)
+  
+  normalizeSamples samples = map scaleSample samples where
+    scaleSample (w,i) = (w/tw,i)
+    tw = sum . map fst $ samples
+  -- take 30 . normalizeSamples . combineSamples . take 20000 . metropolis (Poisson 10.0) $ 13
