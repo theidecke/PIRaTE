@@ -3,4 +3,7 @@
 *.o
 *.hp
 *.ps
+*.aux
+*.prof
+*.tmproj
 Main
