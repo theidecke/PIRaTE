@@ -64,12 +64,24 @@ module UCStream (
   perturbUCStream :: Perturbation -> UCStream -> UCStream -> UCStream
   perturbUCStream p cs rs = evalState (mapM p cs) rs
 
-  defaultPerturbation = expPerturbation 0.002 0.05
+  defaultPerturbation = perturbationFactory (expPerturbation 0.001 0.05)
+  --defaultPerturbation = perturbationFactory (perturbation2 2.0 0.05)
 
-  expPerturbation :: Double -> Double -> Double -> UCStreamTo Double
-  expPerturbation s1 s2 x = do
+  expPerturbation :: Double -> Double -> Double -> Double
+  expPerturbation mindx maxdx = let
+      c1 = negate $ log (maxdx/mindx)
+      c2 = log maxdx
+    in \u1 -> exp (c1*u1+c2)
+
+  perturbation2 :: Double -> Double -> Double -> Double
+  perturbation2 a maxdx u1 = dx where
+    dx = maxdx * utothea / (maxdx*(utothea - 1) + 1)
+    utothea = u1**a
+
+  perturbationFactory :: (Double -> Double) -> Double -> UCStreamTo Double
+  perturbationFactory u2dx x = do
     r1 <- getCoord
-    let dx = s2*(exp (-(log (s2/s1))*r1))
+    let dx = u2dx r1
     r2 <- getCoord
     let x' | r2<0.5    = x+dx
            | otherwise = x-dx
