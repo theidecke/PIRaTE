@@ -120,7 +120,7 @@ module Metropolis where
   expectationValue _ [] = error "can't compute expectation value without samples"
   expectationValue f samples = wv/tw where
     (tw,wv) = foldl' step (0,0) samples
-    step (accweight,accvalue) (!weight,!sample) = (accweight',accvalue') where
+    step (!accweight,!accvalue) (weight,sample) = (accweight',accvalue') where
       accweight' = accweight + weight
       accvalue'  = accvalue  + weight*(f sample)
 
