@@ -1,6 +1,6 @@
 {-# LANGUAGE ParallelListComp #-}
 
-module UCStream (
+module PIRaTE.MonteCarlo.UCStream (
     UCStream,
     randomUCStream,
     mapSplit,

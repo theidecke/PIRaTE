@@ -1,0 +1,53 @@
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
+module PIRaTE.Scene.PhaseFunction where
+  import qualified Data.WeighedSet as WS
+  import PIRaTE.SpatialTypes
+  import PIRaTE.MonteCarlo.Sampled
+  import PIRaTE.MonteCarlo.UtilitySamplers (randomWeightedChoice)
+  
+  -- PhaseFunction determines the Direction-dependent scattering probability
+  data PhaseFunction = forall pf. (Sampleable (pf,Ray) Direction, Show pf) => PhaseFunction pf
+
+  instance Show PhaseFunction where
+    show (PhaseFunction pf) = show pf
+
+  {--instance Sampleable (PhaseFunction,Ray) Direction where
+    sampleProbabilityOf (PhaseFunction pf,inray) wout = sampleProbabilityOf (pf,inray) wout
+    {-# INLINE sampleProbabilityOf #-}
+    randomSampleFrom     (PhaseFunction pf,inray)    g = randomSampleFrom (pf,inray) g
+    {-# INLINE randomSampleFrom #-}--}
+
+  newtype IndexedPhaseFunction = IndexedPhaseFunction {ipfPairForm :: (Int,PhaseFunction)}
+  
+  instance Show IndexedPhaseFunction where
+    show (IndexedPhaseFunction (index,_)) = "Phasefunction " ++ show index
+  instance Eq IndexedPhaseFunction where
+    (==) (IndexedPhaseFunction (index1,_)) (IndexedPhaseFunction (index2,_)) = index1==index2
+    {-# INLINE (==) #-}
+  instance Ord IndexedPhaseFunction where
+    (<=) (IndexedPhaseFunction (index1,_)) (IndexedPhaseFunction (index2,_)) = index1 <= index2
+    {-# INLINE (<=) #-}
+    
+    
+  type WeightedPhaseFunction = WS.WeighedSet IndexedPhaseFunction
+  
+  {--instance Sampleable (WeightedPhaseFunction,Ray) Direction where
+    sampleProbabilityOf (wpf,inray) wout = let
+        step ipf w (tp,tw) = (tp',tw')
+          where tp' = tp + (sampleProbabilityOf (pf,inray) wout)
+                tw' = tw + w
+                pf  = snd . ipfPairForm $ ipf
+        (totalprob,totalweight) = WS.foldWithKey step (0,0) wpf
+      in if totalweight>0
+        then totalprob / totalweight
+        else 0
+
+    sampleFrom (wpf,inray) = do
+      sampledphasefunction <- randomWeightedChoice (WS.toWeightList wpf)
+      let pf = snd . ipfPairForm $ sampledphasefunction
+      sampleFrom (pf,inray)
+    {-# INLINE randomSampleFrom #-}--}

@@ -2,15 +2,15 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE BangPatterns #-}
 
-module Metropolis where
+module PIRaTE.MonteCarlo.Metropolis where
 
   import Data.Word (Word64)
   import Data.List (foldl')
   import Data.Maybe (isNothing,isJust,fromJust)
   import System.Random.Mersenne.Pure64
   import Control.Monad.State
-  import UCStream
-  import Sampled
+  import PIRaTE.MonteCarlo.UCStream
+  import PIRaTE.MonteCarlo.Sampled
 
 
   class (Show b) => MetropolisDistribution a b | a -> b where

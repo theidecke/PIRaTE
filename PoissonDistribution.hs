@@ -6,7 +6,8 @@ module PoissonDistribution (
     poissonPDF
   ) where
 
-  import Sampled
+  import PIRaTE.MonteCarlo.Sampled
+  import PIRaTE.MonteCarlo.UCStream (UCStreamTo,getCoord)
   
   newtype PoissonDistribution = PoissonDistribution Double
   poissonDistFromLambda l = PoissonDistribution l
