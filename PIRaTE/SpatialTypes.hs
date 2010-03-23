@@ -6,6 +6,7 @@ module PIRaTE.SpatialTypes where
   type Point = Vector3
   showVector3 v = "<"++ show (v3x v) ++", "++ show (v3y v) ++", "++ show (v3z v) ++">"
 
+  type Distance = Double
   newtype Direction = Direction Vector3
   unDirection (Direction d) = d
   appliedToDirection f (Direction d) = Direction (f d)

@@ -17,7 +17,7 @@ module PIRaTE.Scene.PhaseFunction.Isotropic where
     
     sampleFrom (Isotropic,_) = do
       dir <- randomIsotropicDirection
-      return $ dir `withImportance` (4*pi)
+      return . Just $ dir `withImportance` (4*pi)
     {-# INLINE sampleFrom #-}
     
   -- generates a random direction vector with length one

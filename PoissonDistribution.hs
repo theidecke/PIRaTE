@@ -15,9 +15,10 @@ module PoissonDistribution (
   -- | implemented simple poisson sampling algorithm from:
   -- | Donald E. Knuth: Seminumerical Algorithms. The Art of Computer Programming, Volume 2
   instance Sampleable PoissonDistribution Integer where
+    sampleProbabilityOf (PoissonDistribution lambda) k = poissonPDF lambda k
     sampleFrom (PoissonDistribution lambda) = do
       poissonsample <- poissonStep (exp (-lambda)) 0 1
-      return $ poissonsample `withProbability` poissonPDF lambda poissonsample
+      return . Just $ poissonsample `withProbability` poissonPDF lambda poissonsample
   
   poissonStep :: Double -> Integer -> Double -> UCStreamTo Integer
   poissonStep l k p = do

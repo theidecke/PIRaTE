@@ -46,7 +46,7 @@ module PIRaTE.Scene.Container.Sphere where
       unitpoint <- randomPointInUnitSphere
       let translation = radius |* unitpoint
           jacobian = 4*pi/3 * radius^3
-      return $ (center + translation) `withImportance` jacobian
+      return . Just $ (center + translation) `withImportance` jacobian
     {-# INLINE sampleFrom #-}
 
   -- | samples homogenously distributed points inside the unitsphere

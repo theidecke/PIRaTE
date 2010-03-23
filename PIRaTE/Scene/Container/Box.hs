@@ -60,7 +60,7 @@ module PIRaTE.Scene.Container.Box where
           y = y1 + d * u2
           z = z1 + h * u3
           boxvolume = w*d*h
-      return $ Vector3 x y z `withImportance` boxvolume
+      return . Just $ Vector3 x y z `withImportance` boxvolume
     {-# INLINE sampleFrom #-}
 
 

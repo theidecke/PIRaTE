@@ -6,6 +6,8 @@
 
 module PIRaTE.Scene.Scene (
     Entity,
+    entityContainer,
+    containing,
     entityFromContainerAndMaterials,
     absorptionAt,
     scatteringAt,
@@ -17,6 +19,12 @@ module PIRaTE.Scene.Scene (
     sensorDirectednessesAt,
     Scene,
     sceneFromEntities,
+    sceneEntities,
+    sceneEmitters,
+    sceneInteractors,
+    sceneScatterers,
+    sceneAbsorbers,
+    sceneSensors,
     opticalDepthBetween,
     probeExtinction,
     probeExtinctionClosure,
@@ -24,7 +32,9 @@ module PIRaTE.Scene.Scene (
     probeEmissionClosure,
     probeSensitivity,
     probeSensitivityClosure,
-    ProbeResult
+    ProbeResult,
+    getProbeResultDepth,
+    getProbeResultDist
   ) where
   import Data.ACVector ((|*),vmag,Vector3(..))
   import Data.Monoid
@@ -45,8 +55,6 @@ module PIRaTE.Scene.Scene (
   import PIRaTE.Scene.Texture
   import PIRaTE.Scene.Material
   import PIRaTE.Scene.Sensor
-  --import PIRaTE.Sampleable
-  
   
   -- an Entity is a container filled with light-influencing material
   data Entity = Entity {

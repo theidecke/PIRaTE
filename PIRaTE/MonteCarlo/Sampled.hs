@@ -17,11 +17,14 @@ module PIRaTE.MonteCarlo.Sampled (
   import Control.Applicative
   import PIRaTE.MonteCarlo.UCStream (UCStreamTo,getCoord)
 
+  type MaybeSampled b = Maybe (Sampled b)
+  type UCToMaybeSampled b = UCStreamTo (MaybeSampled b)
+
   class Sampleable a b where
     -- | computes the probability density of sampling a particular "b" from an "a"
     sampleProbabilityOf :: a -> b -> Double
     -- | construct a sampler which yields "b"s from an "a" using a stream of unitcoordinates
-    sampleFrom :: a -> UCStreamTo (Sampled b)
+    sampleFrom :: a -> UCToMaybeSampled b
 
   -- | sample z of type a with its importance prepended. The importance is the product of
   -- | sample-contribution and the absolute jacobian determinant of its transformation from unitcubespace
@@ -36,12 +39,15 @@ module PIRaTE.MonteCarlo.Sampled (
   withProbability v p  = Sampled (1/p,v)
   scaleImportanceWith s icoeff = (sampledValue s) `withImportance` (icoeff * (sampledImportance s))
 
-  continueSamplingFrom :: (Sampleable a b) => Sampled a -> UCStreamTo (Sampled b)
-  continueSamplingFrom s = do
-    let v = sampledValue s
-        oldi = sampledImportance s
-    s' <- sampleFrom v
-    return $ s' `scaleImportanceWith` oldi
+  continueSamplingFrom :: (Sampleable b c) => (a -> b) -> MaybeSampled a -> UCToMaybeSampled c
+  continueSamplingFrom f ms = case ms of
+      Nothing -> return Nothing
+      Just s  -> do let v = f (sampledValue s)
+                        oldi = sampledImportance s
+                    ms' <- sampleFrom v
+                    case ms' of
+                      Nothing -> return Nothing
+                      Just s' -> return . Just $ s' `scaleImportanceWith` oldi
     
 
   andWith f s1 s2 = (v1 `f` v2) `withImportance` (i1 * i2) where
