@@ -15,11 +15,11 @@ module PIRaTE.Scene.PhaseFunction where
   instance Show PhaseFunction where
     show (PhaseFunction pf) = show pf
 
-  {--instance Sampleable (PhaseFunction,Ray) Direction where
+  instance Sampleable (PhaseFunction,Ray) Direction where
     sampleProbabilityOf (PhaseFunction pf,inray) wout = sampleProbabilityOf (pf,inray) wout
     {-# INLINE sampleProbabilityOf #-}
-    randomSampleFrom     (PhaseFunction pf,inray)    g = randomSampleFrom (pf,inray) g
-    {-# INLINE randomSampleFrom #-}--}
+    sampleFrom     (PhaseFunction pf,inray) = sampleFrom (pf,inray)
+    {-# INLINE sampleFrom #-}
 
   newtype IndexedPhaseFunction = IndexedPhaseFunction {ipfPairForm :: (Int,PhaseFunction)}
   
@@ -33,21 +33,18 @@ module PIRaTE.Scene.PhaseFunction where
     {-# INLINE (<=) #-}
     
     
-  type WeightedPhaseFunction = WS.WeighedSet IndexedPhaseFunction
+  type WeightedPhaseFunction = [(PhaseFunction,Double)]
   
-  {--instance Sampleable (WeightedPhaseFunction,Ray) Direction where
-    sampleProbabilityOf (wpf,inray) wout = let
-        step ipf w (tp,tw) = (tp',tw')
-          where tp' = tp + (sampleProbabilityOf (pf,inray) wout)
-                tw' = tw + w
-                pf  = snd . ipfPairForm $ ipf
-        (totalprob,totalweight) = WS.foldWithKey step (0,0) wpf
-      in if totalweight>0
-        then totalprob / totalweight
-        else 0
+  instance Sampleable (WeightedPhaseFunction,Ray) Direction where
+    sampleProbabilityOf (wpflist,inray) wout
+      | totalweight==0 = 0
+      | otherwise = (/totalweight) . sum $ [w*(sampleProbabilityOf (pf,inray) wout) | (pf,w) <- wpflist]
+      where totalweight = sum . snd . unzip $ wpflist
 
     sampleFrom (wpf,inray) = do
-      sampledphasefunction <- randomWeightedChoice (WS.toWeightList wpf)
-      let pf = snd . ipfPairForm $ sampledphasefunction
-      sampleFrom (pf,inray)
-    {-# INLINE randomSampleFrom #-}--}
+      sampledphasefunction <- lift . randomWeightedChoice $ wpf
+      let pf = sampledValue $ sampledphasefunction
+      sampledwout <- sampleFrom (pf,inray)
+      let wout = sampledValue sampledwout
+      return $ wout `withProbability` sampleProbabilityOf (wpf,inray) wout
+    {-# INLINE sampleFrom #-}

@@ -29,11 +29,11 @@ module PIRaTE.Scene.Material (
   data Material = Material {
         materialAbsorption              :: Texture Double,
         materialScattering              :: Texture Double,
-        materialScatteringPhaseFunction :: IndexedPhaseFunction,
+        materialScatteringPhaseFunction :: PhaseFunction,
         materialEmissivity              :: Texture Double,
-        materialEmissionDirectedness    :: IndexedPhaseFunction,
+        materialEmissionDirectedness    :: PhaseFunction,
         materialSensitivity             :: Texture Double,
-        materialSensor                  :: IndexedSensor
+        materialSensor                  :: Sensor
     }
 
   materialExtinction :: Material -> Texture Double
@@ -54,36 +54,31 @@ module PIRaTE.Scene.Material (
   isSensing :: Material -> Bool
   isSensing m = not $ (materialSensitivity m)==mempty
 
-  toHomogenousInteractingMaterial :: Double -> Double -> (Int,PhaseFunction) -> Material
-  toHomogenousInteractingMaterial kappa sigma ipf@(index,pf) =
+  toHomogenousInteractingMaterial :: Double -> Double -> PhaseFunction -> Material
+  toHomogenousInteractingMaterial kappa sigma pf =
     Material kappatex sigmatex pftex mempty undefined mempty undefined
     where kappatex = Homogenous kappa
           sigmatex = Homogenous sigma
           pftex | sigma==0  = undefined
-                | otherwise = ipftex
-          ipftex = IndexedPhaseFunction ipf
+                | otherwise = pf
 
-  toCustomInteractingMaterial :: (Texture Double) -> (Texture Double) -> (Int,PhaseFunction) -> Material
-  toCustomInteractingMaterial kappatex sigmatex ipf@(index,pf) =
-    Material kappatex sigmatex pftex mempty undefined mempty undefined
-    where pftex = ipftex
-          ipftex = IndexedPhaseFunction ipf
+  toCustomInteractingMaterial :: (Texture Double) -> (Texture Double) -> PhaseFunction -> Material
+  toCustomInteractingMaterial kappatex sigmatex pf =
+    Material kappatex sigmatex pf mempty undefined mempty undefined
 
-  toHomogenousEmittingMaterial :: Double -> (Int,PhaseFunction) -> Material
-  toHomogenousEmittingMaterial epsilon ipf@(index,pf) =
+  toHomogenousEmittingMaterial :: Double -> PhaseFunction -> Material
+  toHomogenousEmittingMaterial epsilon pf =
     Material mempty mempty undefined epsilontex pftex mempty undefined
     where epsilontex = Homogenous epsilon
           pftex | epsilon==0 = undefined
-                | otherwise  = ipftex
-          ipftex = IndexedPhaseFunction ipf
+                | otherwise  = pf
           
-  toHomogenousSensingMaterial :: Double -> (Int,PhaseFunction,SensorLogger) -> Material
-  toHomogenousSensingMaterial zeta ist@(index,pf,sl) =
+  toHomogenousSensingMaterial :: Double -> (PhaseFunction,SensorLogger) -> Material
+  toHomogenousSensingMaterial zeta sensor@(pf,sl) =
     Material mempty mempty undefined mempty undefined zetatex wsens
     where zetatex = Homogenous zeta
           wsens | zeta==0   = undefined
-                | otherwise = indexedsensor
-          indexedsensor = IndexedSensor ist -- indexed sensor triple
+                | otherwise = Sensor sensor
 
   instance Show Material where
     show m =  "kappa="     ++ show (materialAbsorption m) ++

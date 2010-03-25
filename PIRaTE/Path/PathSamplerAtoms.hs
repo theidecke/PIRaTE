@@ -98,7 +98,27 @@ module PIRaTE.Path.PathSamplerAtoms where
   getProbeResultDepth,
   getProbeResultDist
   --}
+  
+  {--
+  data DirectionSampler = forall s . (Sampleable s Direction) => DirectionSampler s
 
+  newtype SensationDirectionSampler = SensationDirectionSampler (Scene, Point)
+  instance Show SensationDirectionSampler where
+    show (SensationDirectionSampler (scene,origin)) = "SensationDirectionSampler @" ++ showVector3 origin ++
+                                                      "in Scene: " ++ show scene
+  instance Sampleable SensationDirectionSampler Direction where
+    randomSampleFrom (SensationDirectionSampler (scene,origin)) g
+      | (scene `sensitivityAt` origin)==0 = return Nothing
+      | otherwise = do direction <- randomSampleFrom (weightedsensors,origin) g
+                       return (Just direction)
+      where weightedsensors = scene `sensorDirectednessesAt` origin
+
+    sampleProbabilityOf (SensationDirectionSampler (scene,origin)) (Just direction) =
+      sampleProbabilityOf (weightedsensors, origin) direction
+      where weightedsensors = scene `sensorDirectednessesAt` origin
+    sampleProbabilityOf (SensationDirectionSampler (scene,origin)) Nothing =
+      samplingNothingError "SensationDirectionSampler"
+  --}
   {--
   -- Direction Samplers
   data DirectionSampler = forall s . (IsDirSampler s, Sampleable s (Maybe Direction)) => DirectionSampler s

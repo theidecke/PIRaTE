@@ -129,21 +129,21 @@ module PIRaTE.Scene.Scene (
   
   scatterPhaseFunctionsAt :: Scene -> Point -> WeightedPhaseFunction
   scatterPhaseFunctionsAt scene point =
-    fromWeightList [m `phaseFunctionWithWeightAt` point | m<-mats]
+    [m `phaseFunctionWithWeightAt` point | m<-mats]
     where phaseFunctionWithWeightAt m p = (materialScatteringPhaseFunction m, materialScattering m `evaluatedAt` p)
           mats = scatterers `materialsAt` point
           scatterers = sceneScatterers scene
 
   emissionDirectednessesAt :: Scene -> Point -> WeightedPhaseFunction
   emissionDirectednessesAt scene point =
-    fromWeightList [m `phaseFunctionWithWeightAt` point | m<-mats]
+    [m `phaseFunctionWithWeightAt` point | m<-mats]
     where phaseFunctionWithWeightAt m p = (materialEmissionDirectedness m, materialEmissivity m `evaluatedAt` p)
           mats = emitters `materialsAt` point
           emitters = sceneEmitters scene
 
   sensorDirectednessesAt :: Scene -> Point -> WeightedSensor
   sensorDirectednessesAt scene point =
-    fromWeightList [m `phaseFunctionWithWeightAt` point | m<-mats]
+    [m `phaseFunctionWithWeightAt` point | m<-mats]
     where phaseFunctionWithWeightAt m p = (materialSensor m, materialSensitivity m `evaluatedAt` p)
           mats = sensors `materialsAt` point
           sensors = sceneSensors scene
