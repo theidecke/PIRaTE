@@ -50,9 +50,9 @@ module PIRaTE.Scene.Container.Box where
     {-# INLINE sampleProbabilityOf #-}
 
     sampleFrom (Box (Vector3 x1 y1 z1) (Vector3 x2 y2 z2)) = do
-      u1 <- getCoord
-      u2 <- getCoord
-      u3 <- getCoord
+      u1 <- lift getCoord
+      u2 <- lift getCoord
+      u3 <- lift getCoord
       let w = x2-x1
           d = y2-y1
           h = z2-z1
@@ -60,7 +60,7 @@ module PIRaTE.Scene.Container.Box where
           y = y1 + d * u2
           z = z1 + h * u3
           boxvolume = w*d*h
-      return . Just $ Vector3 x y z `withImportance` boxvolume
+      return $ Vector3 x y z `withImportance` boxvolume
     {-# INLINE sampleFrom #-}
 
 

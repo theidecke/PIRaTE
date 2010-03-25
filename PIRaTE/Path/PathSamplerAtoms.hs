@@ -19,9 +19,61 @@ module PIRaTE.Path.PathSamplerAtoms where
   import PIRaTE.Scene.Sensor--}
   import PIRaTE.Scene.Scene
   import PIRaTE.MonteCarlo.Sampled
+  import Control.Applicative
+  import Debug.Trace
 
 
-  samplingNothingError name = error $ "don't know " ++ name ++ " probability of sampling Nothing."
+  data PointSampler = forall s . (Sampleable s Point) => PointSampler s
+  instance Sampleable PointSampler Point where
+    sampleProbabilityOf (PointSampler s) = sampleProbabilityOf s
+    sampleFrom          (PointSampler s) = sampleFrom s
+
+  newtype SensationPointSampler = SensationPointSampler Scene
+  instance Show SensationPointSampler where
+    show (SensationPointSampler scene) = "SensationPointSampler in Scene: " ++ show scene
+  instance Sampleable SensationPointSampler Point where
+    sampleProbabilityOf (SensationPointSampler scene) origin =
+      pointsamplerSamplingProbabilityOf scene sceneSensors origin
+    sampleFrom (SensationPointSampler scene) =
+      pointsamplerSampleFrom scene sceneSensors
+
+  newtype EmissionPointSampler = EmissionPointSampler Scene
+  instance Show EmissionPointSampler where
+    show (EmissionPointSampler scene) = "EmissionPointSampler in Scene: " ++ show scene
+  instance Sampleable EmissionPointSampler Point where
+    sampleProbabilityOf (EmissionPointSampler scene) origin =
+      pointsamplerSamplingProbabilityOf scene sceneEmitters origin
+    sampleFrom (EmissionPointSampler scene) =
+      pointsamplerSampleFrom scene sceneEmitters
+
+  newtype ScatteringPointSampler = ScatteringPointSampler Scene
+  instance Show ScatteringPointSampler where
+    show (ScatteringPointSampler scene) = "ScatteringPointSampler in Scene: " ++ show scene
+  instance Sampleable ScatteringPointSampler Point where
+    sampleProbabilityOf (ScatteringPointSampler scene) origin =
+      pointsamplerSamplingProbabilityOf scene sceneScatterers origin
+    sampleFrom (ScatteringPointSampler scene) =
+      pointsamplerSampleFrom scene sceneScatterers
+
+  pointsamplerSamplingProbabilityOf scene entityExtractor point = --trace (show [((sampleProbabilityOf container point),(sampleProbabilityOf containers container)) | container <- containers]) $
+      pointsamplingProbability entities point
+    where entities = entityExtractor scene
+
+  pointsamplerSampleFrom scene entityExtractor
+    | null entities = fail "can't sample PointSampler without Entities"
+    | otherwise = do sampledentity <- sampleFrom entities
+                     let container = entityContainer . sampledValue $ sampledentity
+                     sampledorigin <- sampleFrom container
+                     let origin = sampledValue sampledorigin
+                         probability = pointsamplingProbability entities origin
+                     return $ origin `withProbability` probability 
+    where entities = entityExtractor scene
+
+  pointsamplingProbability entities point =
+      sum [(sampleProbabilityOf container point) *
+           (sampleProbabilityOf containers container) | container <- containers]
+    where containers = map entityContainer entities
+
   {--
   Entity,
   entityFromContainerAndMaterials,
@@ -46,65 +98,8 @@ module PIRaTE.Path.PathSamplerAtoms where
   getProbeResultDepth,
   getProbeResultDist
   --}
-  data PointSampler = forall s . (Sampleable s Point) => PointSampler s
-  newtype SensationPointSampler = SensationPointSampler Scene
-  instance Show SensationPointSampler where
-    show (SensationPointSampler scene) = "SensationPointSampler in Scene: " ++ show scene
-  instance Sampleable SensationPointSampler Point where
-    sampleProbabilityOf (SensationPointSampler scene) origin
-      | null sensors = 0
-      | otherwise = sum [(sampleProbabilityOf (entityContainer sensor) origin) *
-                         (sampleProbabilityOf sensors sensor) | sensor <- sensors]
-      where sensors = sceneSensors scene `containing` origin
-
-    sampleFrom (SensationPointSampler scene)
-      | null sensors = return Nothing
-      | otherwise = do sampledentity <- sampleFrom sensors
-                       sampledorigin <- continueSamplingFrom entityContainer sampledentity
-                       return $ sampledorigin
-      where sensors = sceneSensors scene
 
   {--
-  newtype EmissionPointSampler = EmissionPointSampler Scene
-  instance Show EmissionPointSampler where
-    show (EmissionPointSampler scene) = "EmissionPointSampler in Scene: " ++ show scene
-  instance Sampleable EmissionPointSampler (Maybe Point) where
-    randomSampleFrom (EmissionPointSampler scene) g
-      | null emitters = return Nothing
-      | otherwise = do entity <- randomSampleFrom emitters g
-                       let container = entityContainer entity
-                       origin <- randomSampleFrom container g
-                       return (Just origin)
-      where emitters = sceneEmitters scene
-
-    sampleProbabilityOf (EmissionPointSampler scene) (Just origin)
-      | null emitters = 0
-      | otherwise = sum [(sampleProbabilityOf (entityContainer emitter) origin) *
-                         (sampleProbabilityOf emitters emitter) | emitter <- emitters]
-      where emitters = sceneEmitters scene `containing` origin
-    sampleProbabilityOf (EmissionPointSampler scene) Nothing =
-      samplingNothingError "EmissionPointSampler"
-
-  newtype ScatteringPointSampler = ScatteringPointSampler Scene
-  instance Show ScatteringPointSampler where
-    show (ScatteringPointSampler scene) = "ScatteringPointSampler in Scene: " ++ show scene
-  instance Sampleable ScatteringPointSampler (Maybe Point) where
-    randomSampleFrom (ScatteringPointSampler scene) g
-      | null scatterers = return Nothing
-      | otherwise = do entity <- randomSampleFrom scatterers g
-                       let container = entityContainer entity
-                       origin <- randomSampleFrom container g
-                       return (Just origin)
-      where scatterers = sceneScatterers scene
-
-    sampleProbabilityOf (ScatteringPointSampler scene) (Just origin)
-      | null scatterers = 0
-      | otherwise = sum [(sampleProbabilityOf (entityContainer scatterer) origin) *
-                         (sampleProbabilityOf scatterers scatterer) | scatterer <- scatterers]
-      where scatterers = sceneScatterers scene `containing` origin
-    sampleProbabilityOf (ScatteringPointSampler scene) Nothing =
-      samplingNothingError "ScatteringPointSampler"
-
   -- Direction Samplers
   data DirectionSampler = forall s . (IsDirSampler s, Sampleable s (Maybe Direction)) => DirectionSampler s
 

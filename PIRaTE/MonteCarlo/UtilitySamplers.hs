@@ -3,6 +3,8 @@
 
 module PIRaTE.MonteCarlo.UtilitySamplers where
   import PIRaTE.MonteCarlo.Sampled
+  import Control.Monad.Maybe
+  import Control.Monad.State
 
   randomWeightedChoice :: [(a,Double)] -> UCStreamTo (Sampled a)
   randomWeightedChoice weightedchoices = do
@@ -45,5 +47,5 @@ module PIRaTE.MonteCarlo.UtilitySamplers where
     --sampleProbabilityOf choices choice = if choice `elem` choices then 1 / (fromIntegral $ length choices) else 0
     --requires (Eq a) =>
     sampleFrom choices = do
-      choice <- randomChoice choices
-      return . Just $ choice `withImportance` (fromIntegral $ length choices)
+      choice <- lift . randomChoice $ choices
+      return $ choice `withImportance` (fromIntegral $ length choices)

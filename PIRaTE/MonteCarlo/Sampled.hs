@@ -8,17 +8,29 @@ module PIRaTE.MonteCarlo.Sampled (
     withImportance,
     withProbability,
     scaleImportanceWith,
-    continueSamplingFrom,
     UCStreamTo,
-    getCoord
+    getCoord,
+    UCToMaybeSampled,
+    runUCToMaybeSampled,
+    MaybeSampled,
+    lift
   ) where
 
   import Control.Monad.State
-  import Control.Applicative
+  import Control.Monad.Maybe
   import PIRaTE.MonteCarlo.UCStream (UCStreamTo,getCoord)
 
+  newtype Sampled a = Sampled (Double, a) deriving Show
+  
+  sampledValue      (Sampled (  _,v)) = v
+  sampledImportance (Sampled (ajd,_)) = ajd
+  withImportance v ajd = Sampled (ajd,v)
+  withProbability v p  = Sampled (1/p,v)
+  scaleImportanceWith (Sampled (i,v)) icoeff =  Sampled (icoeff*i,v)
+
+  type UCToMaybeSampled b = MaybeT UCStreamTo (Sampled b)
+  runUCToMaybeSampled = evalState . runMaybeT
   type MaybeSampled b = Maybe (Sampled b)
-  type UCToMaybeSampled b = UCStreamTo (MaybeSampled b)
 
   class Sampleable a b where
     -- | computes the probability density of sampling a particular "b" from an "a"
@@ -31,15 +43,7 @@ module PIRaTE.MonteCarlo.Sampled (
   -- | i = c*ajd = c/p
   -- | which equals the reciprocal of the probability density |det(dS(u)/du)| = 1/p_S(u), z = S(u)
 
-  newtype Sampled a = Sampled (Double, a) deriving Show
-  
-  sampledValue      (Sampled (  _,v)) = v
-  sampledImportance (Sampled (ajd,_)) = ajd
-  withImportance v ajd = Sampled (ajd,v)
-  withProbability v p  = Sampled (1/p,v)
-  scaleImportanceWith s icoeff = (sampledValue s) `withImportance` (icoeff * (sampledImportance s))
-
-  continueSamplingFrom :: (Sampleable b c) => (a -> b) -> MaybeSampled a -> UCToMaybeSampled c
+  {--continueSamplingFrom :: (Sampleable b c) => (a -> b) -> MaybeSampled a -> UCToMaybeSampled c
   continueSamplingFrom f ms = case ms of
       Nothing -> return Nothing
       Just s  -> do let v = f (sampledValue s)
@@ -48,6 +52,7 @@ module PIRaTE.MonteCarlo.Sampled (
                     case ms' of
                       Nothing -> return Nothing
                       Just s' -> return . Just $ s' `scaleImportanceWith` oldi
+  --}
     
 
   andWith f s1 s2 = (v1 `f` v2) `withImportance` (i1 * i2) where
