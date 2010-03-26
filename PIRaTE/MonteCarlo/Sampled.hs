@@ -2,6 +2,7 @@
 
 module PIRaTE.MonteCarlo.Sampled (
     Sampleable(..),
+    importanceFromCP,
     Sampled,
     sampledValue,
     sampledImportance,
@@ -50,18 +51,17 @@ module PIRaTE.MonteCarlo.Sampled (
 
     -- | computes the importance of the sample for metropolis-sampling
     sampleImportance :: a -> b -> Double
-    sampleImportance a b
-      | contribution==0 = 0
-      | otherwise = contribution/probability
-      where
-        contribution = sampleContributionOf a b
-        probability  = sampleProbabilityOf  a b
+    sampleImportance a b = importanceFromCP (sampleContributionOf a b) (sampleProbabilityOf  a b)
 
     -- | construct a sampler which gets samples without importance
     sampleFrom :: a -> UCToMaybe b
     sampleFrom a = do
       swi <- sampleWithImportanceFrom a
       return $ sampledValue swi
+
+  importanceFromCP contribution probability
+    | contribution==0 = 0
+    | otherwise       = contribution/probability
 
   -- | sample z of type a with its importance prepended. The importance is the product of
   -- | sample-contribution and the absolute jacobian determinant of its transformation from unitcubespace

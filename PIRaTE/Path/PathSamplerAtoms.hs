@@ -35,7 +35,7 @@ module PIRaTE.Path.PathSamplerAtoms where
     sampleProbabilityOf (SensationPointSampler scene) origin =
       pointsamplerSamplingProbabilityOf scene sceneSensors origin
     sampleWithImportanceFrom (SensationPointSampler scene) =
-      pointsamplerSampleFrom scene sceneSensors
+      pointsamplerSampleWithImportanceFrom scene sceneSensors sensitivityAt
 
   newtype EmissionPointSampler = EmissionPointSampler Scene
   instance Show EmissionPointSampler where
@@ -44,7 +44,7 @@ module PIRaTE.Path.PathSamplerAtoms where
     sampleProbabilityOf (EmissionPointSampler scene) origin =
       pointsamplerSamplingProbabilityOf scene sceneEmitters origin
     sampleWithImportanceFrom (EmissionPointSampler scene) =
-      pointsamplerSampleFrom scene sceneEmitters
+      pointsamplerSampleWithImportanceFrom scene sceneEmitters emissivityAt
 
   newtype ScatteringPointSampler = ScatteringPointSampler Scene
   instance Show ScatteringPointSampler where
@@ -53,20 +53,22 @@ module PIRaTE.Path.PathSamplerAtoms where
     sampleProbabilityOf (ScatteringPointSampler scene) origin =
       pointsamplerSamplingProbabilityOf scene sceneScatterers origin
     sampleWithImportanceFrom (ScatteringPointSampler scene) =
-      pointsamplerSampleFrom scene sceneScatterers
+      pointsamplerSampleWithImportanceFrom scene sceneScatterers scatteringAt
 
   pointsamplerSamplingProbabilityOf scene entityExtractor point = --trace (show [((sampleProbabilityOf container point),(sampleProbabilityOf containers container)) | container <- containers]) $
       pointsamplingProbability entities point
     where entities = entityExtractor scene
 
-  pointsamplerSampleFrom scene entityExtractor
+  pointsamplerSampleWithImportanceFrom scene entityExtractor contributionExtractor
     | null entities = fail "can't sample PointSampler without Entities"
     | otherwise = do sampledentity <- sampleWithImportanceFrom entities
                      let container = entityContainer . sampledValue $ sampledentity
                      sampledorigin <- sampleWithImportanceFrom container
                      let origin = sampledValue sampledorigin
+                         contribution = contributionExtractor scene origin
                          probability = pointsamplingProbability entities origin
-                     return $ origin `withProbability` probability 
+                         importance = importanceFromCP contribution probability 
+                     return $ origin `withImportance` importance
     where entities = entityExtractor scene
 
   pointsamplingProbability entities point =
