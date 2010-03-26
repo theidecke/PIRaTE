@@ -55,10 +55,12 @@ module PIRaTE.Scene.Container.Sphere where
     u1 <- getCoord
     u2 <- getCoord
     u3 <- getCoord
-    let r   = u1**(1/3)
-        z   = 2 * u2 - 1
-        phi = 2*pi * u3
+    let z   = 2 * u1 - 1
         rho = sqrt $ 1 - z^2
-        x = r*rho*(cos phi)
-        y = r*rho*(sin phi)
-    return $ Vector3 x y z
+        phi = 2*pi * u2
+        x = rho*(cos phi)
+        y = rho*(sin phi)
+        r   = u3**(1/3)
+    return $ r |* Vector3 x y z
+  --  concat . intersperse "," . map showVector3 . evalState (replicateM 1000 randomPointInUnitSphere) $ toStream 13
+  
