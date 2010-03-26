@@ -33,11 +33,11 @@ module PIRaTE.Scene.Sensor where
       where totalweight = sum . snd . unzip $ wpflist
             inray = Ray origin undefined
 
-    sampleFrom wpfo@(wpf,origin) = do
+    sampleWithImportanceFrom wpfo@(wpf,origin) = do
       sampledphasefunction <- lift . randomWeightedChoice $ wpf
       let pf = sensorDirectedness . sampledValue $ sampledphasefunction
           inray = Ray origin undefined
-      sampledwout <- sampleFrom (pf,inray)
+      sampledwout <- sampleWithImportanceFrom (pf,inray)
       let wout = sampledValue sampledwout
       return $ wout `withProbability` sampleProbabilityOf wpfo wout
-    {-# INLINE sampleFrom #-}
+    {-# INLINE sampleWithImportanceFrom #-}

@@ -37,12 +37,12 @@ module PIRaTE.Scene.PhaseFunction.ZCone where
             isotropicprob = 1 / (4*pi)
     {-# INLINE sampleProbabilityOf #-}
 
-    sampleFrom (ZCone h,_) = do
+    sampleWithImportanceFrom (ZCone h,_) = do
       dir <- lift . randomDirectionInZCone $ h
       let areacoverage = 0.5*h
           isotropicjacobian = 4*pi
       return $ dir `withImportance` (areacoverage*isotropicjacobian)
-    {-# INLINE sampleFrom #-}
+    {-# INLINE sampleWithImportanceFrom #-}
 
   -- generates a normalized Direction-Vector that is pointing towards a point inside a cone pointing in the positive z-axis with solid angle 2*pi*capheight, capheight = 1 - cos theta
   randomDirectionInZCone :: Double -> UCStreamTo Direction

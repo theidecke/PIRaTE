@@ -42,12 +42,12 @@ module PIRaTE.Scene.Container.Sphere where
       | otherwise      = 0
     {-# INLINE sampleProbabilityOf #-}
 
-    sampleFrom (Sphere center radius) = do
+    sampleWithImportanceFrom (Sphere center radius) = do
       unitpoint <- lift randomPointInUnitSphere
       let translation = radius |* unitpoint
           jacobian = 4*pi/3 * radius^3
       return $ (center + translation) `withImportance` jacobian
-    {-# INLINE sampleFrom #-}
+    {-# INLINE sampleWithImportanceFrom #-}
 
   -- | samples homogenously distributed points inside the unitsphere
   -- | by sampling z and phi uniformly, determining a point on the spheresurface

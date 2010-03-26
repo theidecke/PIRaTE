@@ -26,7 +26,7 @@ module PIRaTE.Path.PathSamplerAtoms where
   data PointSampler = forall s . (Sampleable s Point) => PointSampler s
   instance Sampleable PointSampler Point where
     sampleProbabilityOf (PointSampler s) = sampleProbabilityOf s
-    sampleFrom          (PointSampler s) = sampleFrom s
+    sampleWithImportanceFrom          (PointSampler s) = sampleWithImportanceFrom s
 
   newtype SensationPointSampler = SensationPointSampler Scene
   instance Show SensationPointSampler where
@@ -34,7 +34,7 @@ module PIRaTE.Path.PathSamplerAtoms where
   instance Sampleable SensationPointSampler Point where
     sampleProbabilityOf (SensationPointSampler scene) origin =
       pointsamplerSamplingProbabilityOf scene sceneSensors origin
-    sampleFrom (SensationPointSampler scene) =
+    sampleWithImportanceFrom (SensationPointSampler scene) =
       pointsamplerSampleFrom scene sceneSensors
 
   newtype EmissionPointSampler = EmissionPointSampler Scene
@@ -43,7 +43,7 @@ module PIRaTE.Path.PathSamplerAtoms where
   instance Sampleable EmissionPointSampler Point where
     sampleProbabilityOf (EmissionPointSampler scene) origin =
       pointsamplerSamplingProbabilityOf scene sceneEmitters origin
-    sampleFrom (EmissionPointSampler scene) =
+    sampleWithImportanceFrom (EmissionPointSampler scene) =
       pointsamplerSampleFrom scene sceneEmitters
 
   newtype ScatteringPointSampler = ScatteringPointSampler Scene
@@ -52,7 +52,7 @@ module PIRaTE.Path.PathSamplerAtoms where
   instance Sampleable ScatteringPointSampler Point where
     sampleProbabilityOf (ScatteringPointSampler scene) origin =
       pointsamplerSamplingProbabilityOf scene sceneScatterers origin
-    sampleFrom (ScatteringPointSampler scene) =
+    sampleWithImportanceFrom (ScatteringPointSampler scene) =
       pointsamplerSampleFrom scene sceneScatterers
 
   pointsamplerSamplingProbabilityOf scene entityExtractor point = --trace (show [((sampleProbabilityOf container point),(sampleProbabilityOf containers container)) | container <- containers]) $
@@ -61,9 +61,9 @@ module PIRaTE.Path.PathSamplerAtoms where
 
   pointsamplerSampleFrom scene entityExtractor
     | null entities = fail "can't sample PointSampler without Entities"
-    | otherwise = do sampledentity <- sampleFrom entities
+    | otherwise = do sampledentity <- sampleWithImportanceFrom entities
                      let container = entityContainer . sampledValue $ sampledentity
-                     sampledorigin <- sampleFrom container
+                     sampledorigin <- sampleWithImportanceFrom container
                      let origin = sampledValue sampledorigin
                          probability = pointsamplingProbability entities origin
                      return $ origin `withProbability` probability 

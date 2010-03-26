@@ -2,7 +2,7 @@
 
 module PoissonDistribution (
     poissonDistFromLambda,
-    sampleFrom,
+    sampleWithImportanceFrom,
     poissonPDF
   ) where
 
@@ -16,7 +16,7 @@ module PoissonDistribution (
   -- | Donald E. Knuth: Seminumerical Algorithms. The Art of Computer Programming, Volume 2
   instance Sampleable PoissonDistribution Integer where
     sampleProbabilityOf (PoissonDistribution lambda) k = poissonPDF lambda k
-    sampleFrom (PoissonDistribution lambda) = do
+    sampleWithImportanceFrom (PoissonDistribution lambda) = do
       poissonsample <- poissonStep (exp (-lambda)) 0 1
       return . Just $ poissonsample `withProbability` poissonPDF lambda poissonsample
   

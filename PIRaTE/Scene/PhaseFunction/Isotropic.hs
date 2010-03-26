@@ -15,10 +15,10 @@ module PIRaTE.Scene.PhaseFunction.Isotropic where
     sampleProbabilityOf (Isotropic,_) d = 1/(4*pi)
     {-# INLINE sampleProbabilityOf #-}
     
-    sampleFrom (Isotropic,_) = do
+    sampleWithImportanceFrom (Isotropic,_) = do
       dir <- lift randomIsotropicDirection
       return $ dir `withImportance` (4*pi)
-    {-# INLINE sampleFrom #-}
+    {-# INLINE sampleWithImportanceFrom #-}
     
   -- generates a random direction vector with length one
   randomIsotropicDirection :: UCStreamTo Direction

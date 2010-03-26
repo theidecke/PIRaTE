@@ -46,6 +46,6 @@ module PIRaTE.MonteCarlo.UtilitySamplers where
     --unsafe, should be:
     --sampleProbabilityOf choices choice = if choice `elem` choices then 1 / (fromIntegral $ length choices) else 0
     --requires (Eq a) =>
-    sampleFrom choices = do
+    sampleWithImportanceFrom choices = do
       choice <- lift . randomChoice $ choices
       return $ choice `withImportance` (fromIntegral $ length choices)

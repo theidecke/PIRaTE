@@ -29,14 +29,39 @@ module PIRaTE.MonteCarlo.Sampled (
   scaleImportanceWith (Sampled (i,v)) icoeff =  Sampled (icoeff*i,v)
 
   type UCToMaybeSampled b = MaybeT UCStreamTo (Sampled b)
+  type UCToMaybe b = MaybeT UCStreamTo b
   runUCToMaybeSampled = evalState . runMaybeT
   type MaybeSampled b = Maybe (Sampled b)
 
   class Sampleable a b where
-    -- | computes the probability density of sampling a particular "b" from an "a"
-    sampleProbabilityOf :: a -> b -> Double
     -- | construct a sampler which yields "b"s from an "a" using a stream of unitcoordinates
-    sampleFrom :: a -> UCToMaybeSampled b
+    sampleWithImportanceFrom :: a -> UCToMaybeSampled b
+    sampleWithImportanceFrom a = do
+      sample <- sampleFrom a
+      let importance = sampleImportance a sample
+      return $ sample `withImportance` importance
+
+    -- | computes the probability density of sampling a particular "b" from an "a"
+    sampleProbabilityOf  :: a -> b -> Double
+
+    -- | returns the desired contribution of the sample
+    sampleContributionOf :: a -> b -> Double
+    sampleContributionOf _ _ = 1
+
+    -- | computes the importance of the sample for metropolis-sampling
+    sampleImportance :: a -> b -> Double
+    sampleImportance a b
+      | contribution==0 = 0
+      | otherwise = contribution/probability
+      where
+        contribution = sampleContributionOf a b
+        probability  = sampleProbabilityOf  a b
+
+    -- | construct a sampler which gets samples without importance
+    sampleFrom :: a -> UCToMaybe b
+    sampleFrom a = do
+      swi <- sampleWithImportanceFrom a
+      return $ sampledValue swi
 
   -- | sample z of type a with its importance prepended. The importance is the product of
   -- | sample-contribution and the absolute jacobian determinant of its transformation from unitcubespace
@@ -48,7 +73,7 @@ module PIRaTE.MonteCarlo.Sampled (
       Nothing -> return Nothing
       Just s  -> do let v = f (sampledValue s)
                         oldi = sampledImportance s
-                    ms' <- sampleFrom v
+                    ms' <- sampleWithImportanceFrom v
                     case ms' of
                       Nothing -> return Nothing
                       Just s' -> return . Just $ s' `scaleImportanceWith` oldi

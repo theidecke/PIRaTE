@@ -25,7 +25,7 @@ module PIRaTE.Scene.Container where
   instance Sampleable Container Point where
     sampleProbabilityOf (Container c) p = sampleProbabilityOf c p
     {-# INLINE sampleProbabilityOf #-}
-    sampleFrom (Container c) = sampleFrom c
-    {-# INLINE sampleFrom #-}
+    sampleWithImportanceFrom (Container c) = sampleWithImportanceFrom c
+    {-# INLINE sampleWithImportanceFrom #-}
 
     
