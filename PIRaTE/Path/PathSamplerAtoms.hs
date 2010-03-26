@@ -75,32 +75,11 @@ module PIRaTE.Path.PathSamplerAtoms where
                      sampleFrom container
     where entities = entityExtractor scene
 
-  {--
-  Entity,
-  entityFromContainerAndMaterials,
-  absorptionAt,
-  scatteringAt,
-  extinctionAt,
-  sensitivityAt,
-  emissivityAt,
-  scatterPhaseFunctionsAt,
-  emissionDirectednessesAt,
-  sensorDirectednessesAt,
-  Scene,
-  sceneFromEntities,
-  opticalDepthBetween,
-  probeExtinction,
-  probeExtinctionClosure,
-  probeEmission,
-  probeEmissionClosure,
-  probeSensitivity,
-  probeSensitivityClosure,
-  ProbeResult,
-  getProbeResultDepth,
-  getProbeResultDist
-  --}
-  
   data DirectionSampler = forall s . (Sampleable s Direction) => DirectionSampler s
+  instance Sampleable DirectionSampler Direction where
+    sampleProbabilityOf (DirectionSampler ds) = sampleProbabilityOf ds
+    sampleFrom          (DirectionSampler ds) = sampleFrom ds
+    sampleImportanceOf  (DirectionSampler ds) = sampleImportanceOf ds
 
   newtype SensationDirectionSampler = SensationDirectionSampler (Scene, Ray)
   instance Show SensationDirectionSampler where
@@ -108,88 +87,39 @@ module PIRaTE.Path.PathSamplerAtoms where
       "SensationDirectionSampler @" ++ showVector3 origin ++ "in Scene: " ++ show scene
   instance Sampleable SensationDirectionSampler Direction where
     sampleProbabilityOf (SensationDirectionSampler (scene,Ray origin _)) direction =
-        sampleProbabilityOf (weightedsensors, origin) direction
-      where weightedsensors = scene `sensorDirectednessesAt` origin
-
+      sampleProbabilityOf (scene `sensorDirectednessesAt` origin, origin) direction
     sampleFrom (SensationDirectionSampler (scene,Ray origin _)) =
-        sampleFrom (weightedsensors,origin)
-      where weightedsensors = scene `sensorDirectednessesAt` origin
-
+      sampleFrom (scene `sensorDirectednessesAt` origin,origin)
     -- contribution == probability
     sampleImportanceOf (SensationDirectionSampler _) _ = 1
 
 
+  newtype EmissionDirectionSampler = EmissionDirectionSampler (Scene, Ray)
+  instance Show EmissionDirectionSampler where
+    show (EmissionDirectionSampler (scene, Ray origin _)) =
+      "EmissionDirectionSampler @" ++ showVector3 origin ++ "in Scene: " ++ show scene
+  instance Sampleable EmissionDirectionSampler Direction where
+    sampleProbabilityOf (EmissionDirectionSampler (scene, Ray origin _)) direction =
+      sampleProbabilityOf (scene `emissionDirectednessesAt` origin, Ray origin undefined) direction
+    sampleFrom (EmissionDirectionSampler (scene, Ray origin _)) =
+      sampleFrom (scene `emissionDirectednessesAt` origin, Ray origin undefined)
+    sampleImportanceOf (EmissionDirectionSampler _) _ = 1
+
+
+  newtype ScatteringDirectionSampler = ScatteringDirectionSampler (Scene, Ray)
+  instance Show ScatteringDirectionSampler where
+    show (ScatteringDirectionSampler (scene, Ray origin dir)) =
+      "ScatteringDirectionSampler @" ++ showVector3 origin ++
+      show dir ++
+      "in Scene: " ++ show scene
+  instance Sampleable ScatteringDirectionSampler Direction where
+    sampleProbabilityOf (ScatteringDirectionSampler (scene, inray)) wout =
+      sampleProbabilityOf (scene `scatterPhaseFunctionsAt` (rayOrigin inray), inray) wout
+    sampleFrom (ScatteringDirectionSampler (scene, inray)) =
+      sampleFrom (scene `scatterPhaseFunctionsAt` (rayOrigin inray), inray)
+    sampleImportanceOf (ScatteringDirectionSampler _) _ = 1
 
   {--
-  -- Direction Samplers
-  data DirectionSampler = forall s . (IsDirSampler s, Sampleable s (Maybe Direction)) => DirectionSampler s
-
-  instance Sampleable DirectionSampler (Maybe Direction) where
-    randomSampleFrom (DirectionSampler ds) = randomSampleFrom ds
-    sampleProbabilityOf (DirectionSampler ds) = sampleProbabilityOf ds
-
-  class IsDirSampler a where
-    dirSamplerOrigin :: a -> Point
-
-  instance IsDirSampler DirectionSampler where dirSamplerOrigin (DirectionSampler ds)   = dirSamplerOrigin ds
-  instance IsDirSampler SensationDirectionSampler  where dirSamplerOrigin (SensationDirectionSampler  (_,origin))   = origin
-  instance IsDirSampler EmissionDirectionSampler   where dirSamplerOrigin (EmissionDirectionSampler   (_,origin))   = origin
-  instance IsDirSampler ScatteringDirectionSampler where dirSamplerOrigin (ScatteringDirectionSampler (_,origin,_)) = origin
-
-  newtype SensationDirectionSampler = SensationDirectionSampler (Scene, Point)
-  instance Show SensationDirectionSampler where
-    show (SensationDirectionSampler (scene,origin)) = "SensationDirectionSampler @" ++ showVector3 origin ++
-                                                      "in Scene: " ++ show scene
-  instance Sampleable SensationDirectionSampler (Maybe Direction) where
-    randomSampleFrom (SensationDirectionSampler (scene,origin)) g
-      | (scene `sensitivityAt` origin)==0 = return Nothing
-      | otherwise = do direction <- randomSampleFrom (weightedsensors,origin) g
-                       return (Just direction)
-      where weightedsensors = scene `sensorDirectednessesAt` origin
-            --TODO: remove double call to `containing` hidden in summedMaterialAt
-
-    sampleProbabilityOf (SensationDirectionSampler (scene,origin)) (Just direction) =
-      sampleProbabilityOf (weightedsensors, origin) direction
-      where weightedsensors = scene `sensorDirectednessesAt` origin
-    sampleProbabilityOf (SensationDirectionSampler (scene,origin)) Nothing =
-      samplingNothingError "SensationDirectionSampler"
-
-  newtype EmissionDirectionSampler = EmissionDirectionSampler (Scene, Point)
-  instance Show EmissionDirectionSampler where
-    show (EmissionDirectionSampler (scene,origin)) = "EmissionDirectionSampler @" ++ showVector3 origin ++
-                                                     "in Scene: " ++ show scene
-  instance Sampleable EmissionDirectionSampler (Maybe Direction) where
-    randomSampleFrom (EmissionDirectionSampler (scene,origin)) g
-      | (scene `emissivityAt` origin)==0 = return Nothing
-      | otherwise = do direction <- randomSampleFrom (weightedphasefunctions, Ray origin undefined) g
-                       return (Just direction)
-      where weightedphasefunctions = scene `emissionDirectednessesAt` origin
-          
-    sampleProbabilityOf (EmissionDirectionSampler (scene,origin)) (Just direction) =
-      sampleProbabilityOf (weightedphasefunctions, Ray origin undefined) direction
-      where weightedphasefunctions = scene `emissionDirectednessesAt` origin
-    sampleProbabilityOf (EmissionDirectionSampler (scene,origin)) Nothing =
-      samplingNothingError "EmissionDirectionSampler"
-
-  newtype ScatteringDirectionSampler = ScatteringDirectionSampler (Scene, Point, Direction)
-  instance Show ScatteringDirectionSampler where
-    show (ScatteringDirectionSampler (scene,origin,Direction dir)) =
-      "ScatteringDirectionSampler @" ++ showVector3 origin ++
-      "->@" ++ showVector3 dir ++
-      "in Scene: " ++ show scene
-  instance Sampleable ScatteringDirectionSampler (Maybe Direction) where
-    randomSampleFrom (ScatteringDirectionSampler (scene,origin,win)) g
-      | (scene `scatteringAt` origin)==0 = return Nothing
-      | otherwise = do wout <- randomSampleFrom (weightedphasefunctions, Ray origin win) g
-                       return (Just wout)
-      where weightedphasefunctions = scene `scatterPhaseFunctionsAt` origin
-          
-    sampleProbabilityOf (ScatteringDirectionSampler (scene,origin,win)) (Just wout) = 
-      sampleProbabilityOf (weightedphasefunctions, Ray origin win) wout where
-        weightedphasefunctions = scene `scatterPhaseFunctionsAt` origin
-    sampleProbabilityOf (ScatteringDirectionSampler (scene,origin,win)) Nothing =
-      samplingNothingError "ScatteringDirectionSampler"
-
   -- Distance Samplers
   data DistanceSampler = forall s . (Sampleable s (Maybe Double)) => DistanceSampler s
 
