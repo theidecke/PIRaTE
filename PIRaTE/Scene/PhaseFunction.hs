@@ -21,18 +21,6 @@ module PIRaTE.Scene.PhaseFunction where
     sampleWithImportanceFrom     (PhaseFunction pf,inray) = sampleWithImportanceFrom (pf,inray)
     {-# INLINE sampleWithImportanceFrom #-}
 
-  newtype IndexedPhaseFunction = IndexedPhaseFunction {ipfPairForm :: (Int,PhaseFunction)}
-  
-  instance Show IndexedPhaseFunction where
-    show (IndexedPhaseFunction (index,_)) = "Phasefunction " ++ show index
-  instance Eq IndexedPhaseFunction where
-    (==) (IndexedPhaseFunction (index1,_)) (IndexedPhaseFunction (index2,_)) = index1==index2
-    {-# INLINE (==) #-}
-  instance Ord IndexedPhaseFunction where
-    (<=) (IndexedPhaseFunction (index1,_)) (IndexedPhaseFunction (index2,_)) = index1 <= index2
-    {-# INLINE (<=) #-}
-    
-    
   type WeightedPhaseFunction = [(PhaseFunction,Double)]
   
   instance Sampleable (WeightedPhaseFunction,Ray) Direction where
@@ -41,10 +29,7 @@ module PIRaTE.Scene.PhaseFunction where
       | otherwise = (/totalweight) . sum $ [w*(sampleProbabilityOf (pf,inray) wout) | (pf,w) <- wpflist]
       where totalweight = sum . snd . unzip $ wpflist
 
-    sampleWithImportanceFrom (wpf,inray) = do
+    sampleFrom (wpf,inray) = do
       sampledphasefunction <- lift . randomWeightedChoice $ wpf
       let pf = sampledValue $ sampledphasefunction
-      sampledwout <- sampleWithImportanceFrom (pf,inray)
-      let wout = sampledValue sampledwout
-      return $ wout `withProbability` sampleProbabilityOf (wpf,inray) wout
-    {-# INLINE sampleWithImportanceFrom #-}
+      sampleFrom (pf,inray)
