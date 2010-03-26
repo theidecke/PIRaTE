@@ -100,26 +100,26 @@ module PIRaTE.Path.PathSamplerAtoms where
   getProbeResultDist
   --}
   
-  {--
   data DirectionSampler = forall s . (Sampleable s Direction) => DirectionSampler s
 
-  newtype SensationDirectionSampler = SensationDirectionSampler (Scene, Point)
+  newtype SensationDirectionSampler = SensationDirectionSampler (Scene, Ray)
   instance Show SensationDirectionSampler where
-    show (SensationDirectionSampler (scene,origin)) = "SensationDirectionSampler @" ++ showVector3 origin ++
-                                                      "in Scene: " ++ show scene
+    show (SensationDirectionSampler (scene,Ray origin _)) =
+      "SensationDirectionSampler @" ++ showVector3 origin ++ "in Scene: " ++ show scene
   instance Sampleable SensationDirectionSampler Direction where
-    randomSampleFrom (SensationDirectionSampler (scene,origin)) g
-      | (scene `sensitivityAt` origin)==0 = return Nothing
-      | otherwise = do direction <- randomSampleFrom (weightedsensors,origin) g
-                       return (Just direction)
+    sampleProbabilityOf (SensationDirectionSampler (scene,Ray origin _)) direction =
+        sampleProbabilityOf (weightedsensors, origin) direction
       where weightedsensors = scene `sensorDirectednessesAt` origin
 
-    sampleProbabilityOf (SensationDirectionSampler (scene,origin)) (Just direction) =
-      sampleProbabilityOf (weightedsensors, origin) direction
+    sampleFrom (SensationDirectionSampler (scene,Ray origin _)) =
+        sampleFrom (weightedsensors,origin)
       where weightedsensors = scene `sensorDirectednessesAt` origin
-    sampleProbabilityOf (SensationDirectionSampler (scene,origin)) Nothing =
-      samplingNothingError "SensationDirectionSampler"
-  --}
+
+    -- contribution == probability
+    sampleImportanceOf (SensationDirectionSampler _) _ = 1
+
+
+
   {--
   -- Direction Samplers
   data DirectionSampler = forall s . (IsDirSampler s, Sampleable s (Maybe Direction)) => DirectionSampler s
