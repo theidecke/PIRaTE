@@ -15,7 +15,7 @@ module PIRaTE.SpatialTypes where
              | otherwise = Direction (normalize e)
   
   instance Show Direction where
-    show (Direction d) = showVector3 d
+    show (Direction d) = "-->" ++ showVector3 d
   instance Eq Direction where
     (==) (Direction d1) (Direction d2) = (==) d1 d2
   
