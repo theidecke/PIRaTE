@@ -25,8 +25,9 @@ module PIRaTE.Path.PathSamplerAtoms where
 
   data PointSampler = forall s . (Sampleable s Point) => PointSampler s
   instance Sampleable PointSampler Point where
-    sampleProbabilityOf (PointSampler s) = sampleProbabilityOf s
-    sampleWithImportanceFrom          (PointSampler s) = sampleWithImportanceFrom s
+    sampleProbabilityOf  (PointSampler s) = sampleProbabilityOf s
+    sampleFrom           (PointSampler s) = sampleFrom s
+    sampleContributionOf (PointSampler s) = sampleContributionOf s
 
   newtype SensationPointSampler = SensationPointSampler Scene
   instance Show SensationPointSampler where
@@ -34,8 +35,9 @@ module PIRaTE.Path.PathSamplerAtoms where
   instance Sampleable SensationPointSampler Point where
     sampleProbabilityOf (SensationPointSampler scene) origin =
       pointsamplerSamplingProbabilityOf scene sceneSensors origin
-    sampleWithImportanceFrom (SensationPointSampler scene) =
-      pointsamplerSampleWithImportanceFrom scene sceneSensors sensitivityAt
+    sampleFrom (SensationPointSampler scene) =
+      pointsamplerSampleFrom scene sceneSensors
+    sampleContributionOf (SensationPointSampler scene) origin = scene `sensitivityAt` origin
 
   newtype EmissionPointSampler = EmissionPointSampler Scene
   instance Show EmissionPointSampler where
@@ -43,8 +45,9 @@ module PIRaTE.Path.PathSamplerAtoms where
   instance Sampleable EmissionPointSampler Point where
     sampleProbabilityOf (EmissionPointSampler scene) origin =
       pointsamplerSamplingProbabilityOf scene sceneEmitters origin
-    sampleWithImportanceFrom (EmissionPointSampler scene) =
-      pointsamplerSampleWithImportanceFrom scene sceneEmitters emissivityAt
+    sampleFrom (EmissionPointSampler scene) =
+      pointsamplerSampleFrom scene sceneEmitters
+    sampleContributionOf (EmissionPointSampler scene) origin = scene `emissivityAt` origin
 
   newtype ScatteringPointSampler = ScatteringPointSampler Scene
   instance Show ScatteringPointSampler where
@@ -52,29 +55,25 @@ module PIRaTE.Path.PathSamplerAtoms where
   instance Sampleable ScatteringPointSampler Point where
     sampleProbabilityOf (ScatteringPointSampler scene) origin =
       pointsamplerSamplingProbabilityOf scene sceneScatterers origin
-    sampleWithImportanceFrom (ScatteringPointSampler scene) =
-      pointsamplerSampleWithImportanceFrom scene sceneScatterers scatteringAt
+    sampleFrom (ScatteringPointSampler scene) =
+      pointsamplerSampleFrom scene sceneScatterers
+    sampleContributionOf (ScatteringPointSampler scene) origin = scene `scatteringAt` origin
 
-  pointsamplerSamplingProbabilityOf scene entityExtractor point = --trace (show [((sampleProbabilityOf container point),(sampleProbabilityOf containers container)) | container <- containers]) $
+  pointsamplerSamplingProbabilityOf scene entityExtractor point =
       pointsamplingProbability entities point
-    where entities = entityExtractor scene
-
-  pointsamplerSampleWithImportanceFrom scene entityExtractor contributionExtractor
-    | null entities = fail "can't sample PointSampler without Entities"
-    | otherwise = do sampledentity <- sampleWithImportanceFrom entities
-                     let container = entityContainer . sampledValue $ sampledentity
-                     sampledorigin <- sampleWithImportanceFrom container
-                     let origin = sampledValue sampledorigin
-                         contribution = contributionExtractor scene origin
-                         probability = pointsamplingProbability entities origin
-                         importance = importanceFromCP contribution probability 
-                     return $ origin `withImportance` importance
     where entities = entityExtractor scene
 
   pointsamplingProbability entities point =
       sum [(sampleProbabilityOf container point) *
            (sampleProbabilityOf containers container) | container <- containers]
     where containers = map entityContainer entities
+
+  pointsamplerSampleFrom scene entityExtractor
+    | null entities = fail "can't sample PointSampler without Entities"
+    | otherwise = do entity <- sampleFrom entities
+                     let container = entityContainer entity
+                     sampleFrom container
+    where entities = entityExtractor scene
 
   {--
   Entity,
