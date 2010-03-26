@@ -1,10 +1,11 @@
 module PIRaTE.SpatialTypes where
   import Data.ACVector
+  import Text.Printf (printf)
   import PIRaTE.UtilityFunctions (normalize)
   
   -- some basic aliases and helper data types
   type Point = Vector3
-  showVector3 v = "<"++ show (v3x v) ++", "++ show (v3y v) ++", "++ show (v3z v) ++">"
+  showVector3 v = "{"++ (printf "%f" (v3x v)) ++", "++ (printf "%f" (v3y v)) ++", "++ (printf "%f" (v3z v)) ++"}"
 
   type Distance = Double
   newtype Direction = Direction Vector3

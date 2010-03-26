@@ -9,7 +9,8 @@ module PIRaTE.MonteCarlo.UCStream (
     dropPertHead,
     perturbationTreeFromGen,
     UCStreamTo,
-    getCoord
+    getCoord,
+    toStream
   ) where
 
   import Data.Word (Word64)
