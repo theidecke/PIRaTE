@@ -21,7 +21,9 @@ module PIRaTE.MonteCarlo.Sampled (
   import Control.Monad.Maybe
   import PIRaTE.MonteCarlo.UCStream (UCStreamTo,getCoord)
 
-  newtype Sampled a = Sampled (Double, a) deriving Show
+  newtype Sampled a = Sampled (Double, a)
+  instance Show a => Show (Sampled a) where
+    show sampled = "(Sampled " ++ show (sampledValue sampled) ++ " with Importance " ++ show (sampledImportance sampled) ++ ")"
   
   sampledValue      (Sampled (  _,v)) = v
   sampledImportance (Sampled (ajd,_)) = ajd
@@ -39,7 +41,7 @@ module PIRaTE.MonteCarlo.Sampled (
     sampleWithImportanceFrom :: a -> UCToMaybeSampled b
     sampleWithImportanceFrom a = do
       sample <- sampleFrom a
-      let importance = sampleImportance a sample
+      let importance = sampleImportanceOf a sample
       return $ sample `withImportance` importance
 
     -- | computes the probability density of sampling a particular "b" from an "a"
@@ -50,8 +52,8 @@ module PIRaTE.MonteCarlo.Sampled (
     sampleContributionOf _ _ = 1
 
     -- | computes the importance of the sample for metropolis-sampling
-    sampleImportance :: a -> b -> Double
-    sampleImportance a b = importanceFromCP (sampleContributionOf a b) (sampleProbabilityOf  a b)
+    sampleImportanceOf :: a -> b -> Double
+    sampleImportanceOf a b = importanceFromCP (sampleContributionOf a b) (sampleProbabilityOf a b)
 
     -- | construct a sampler which gets samples without importance
     sampleFrom :: a -> UCToMaybe b
