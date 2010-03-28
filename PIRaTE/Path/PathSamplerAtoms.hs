@@ -5,22 +5,13 @@
 
 module PIRaTE.Path.PathSamplerAtoms where
   import Data.ACVector
+  import Data.Maybe (fromJust)
   import PIRaTE.SpatialTypes
-  {--import PIRaTE.UtilityFunctions (infinity,edgeMap)
-  import PIRaTE.Scene.Confineable
-  import PIRaTE.Scene.Container
-  import PIRaTE.Scene.Container.Sphere
-  import PIRaTE.Scene.Container.Box
-  import PIRaTE.Scene.PhaseFunction
-  import PIRaTE.Scene.PhaseFunction.Isotropic
-  import PIRaTE.Scene.PhaseFunction.ZCone
-  import PIRaTE.Scene.Texture
-  import PIRaTE.Scene.Material
-  import PIRaTE.Scene.Sensor--}
+  import PIRaTE.UtilityFunctions (infinity)
   import PIRaTE.Scene.Scene
   import PIRaTE.MonteCarlo.Sampled
-  import Control.Applicative
-  import Debug.Trace
+  --import Control.Applicative
+  --import Debug.Trace
 
 
   data PointSampler = forall s . (Sampleable s Point) => PointSampler s
@@ -119,85 +110,124 @@ module PIRaTE.Path.PathSamplerAtoms where
       sampleFrom (scene `scatterPhaseFunctionsAt` (rayOrigin inray), inray)
     sampleImportanceOf (ScatteringDirectionSampler _) _ = 1
 
-  {--
   -- Distance Samplers
-  data DistanceSampler = forall s . (Sampleable s (Maybe Double)) => DistanceSampler s
+  data DistanceSampler = forall s . (Sampleable s Distance) => DistanceSampler s
 
-  instance Sampleable DistanceSampler (Maybe Double) where
-    randomSampleFrom (DistanceSampler ds) = randomSampleFrom ds
-    sampleProbabilityOf (DistanceSampler ds) = sampleProbabilityOf ds
+  instance Sampleable DistanceSampler Distance where
+    sampleProbabilityOf  (DistanceSampler ds) = sampleProbabilityOf ds
+    sampleFrom           (DistanceSampler ds) = sampleFrom ds
+    sampleContributionOf (DistanceSampler ds) = sampleContributionOf ds
 
-  newtype SensationDistanceSampler = SensationDistanceSampler (Scene,Point,Direction)
-  instance Show SensationDistanceSampler where
-    show (SensationDistanceSampler (scene,origin,Direction dir)) =
-      "SensationDistanceSampler @" ++ showVector3 origin ++
-      "->@" ++ showVector3 dir ++
-      "in Scene: " ++ show scene
-  instance Sampleable SensationDistanceSampler (Maybe Double) where
-    randomSampleFrom (SensationDistanceSampler (scene,origin,direction)) g =
-      randomSampleFrom distsampler g
-      where distsampler = getSensationDistanceSampler scene origin direction
-    {-# INLINE randomSampleFrom #-}
 
-    sampleProbabilityOf (SensationDistanceSampler (scene,origin,direction)) distance = 
-      sampleProbabilityOf distsampler distance
-      where distsampler = getSensationDistanceSampler scene origin direction
-    {-# INLINE sampleProbabilityOf #-}
-  
-  getSensationDistanceSampler scene origin direction = UniformDepthDistanceSampleable (sensors, property, ray) where
-    sensors = sceneSensors scene
-    property = materialSensitivity
-    ray = Ray origin direction
-  {-# INLINE getSensationDistanceSampler #-}
+  newtype SensorDistanceSampler = SensorDistanceSampler (Scene,Ray)
+  instance Show SensorDistanceSampler where
+    show (SensorDistanceSampler (scene, Ray origin dir)) =
+      "SensorDistanceSampler @" ++ showVector3 origin ++ show dir ++ " in Scene: " ++ show scene
+  instance Sampleable SensorDistanceSampler Distance where
+    sampleProbabilityOf (SensorDistanceSampler (scene, outray)) distance =
+        sampleProbabilityOf distsampler distance
+      where distsampler = getSensorDistanceSampler scene outray
 
-  newtype EmissionDistanceSampler = EmissionDistanceSampler (Scene,Point,Direction)
-  instance Show EmissionDistanceSampler where
-    show (EmissionDistanceSampler (scene,origin,Direction dir)) =
-      "EmissionDistanceSampler @" ++ showVector3 origin ++
-      "->@" ++ showVector3 dir ++
-      "in Scene: " ++ show scene
-  instance Sampleable EmissionDistanceSampler (Maybe Double) where
-    randomSampleFrom (EmissionDistanceSampler (scene,origin,direction)) g =
-      randomSampleFrom distsampler g
-      where distsampler = getEmissionDistanceSampler scene origin direction
-    {-# INLINE randomSampleFrom #-}
+    sampleFrom (SensorDistanceSampler (scene, outray)) =
+        sampleFrom distsampler
+      where distsampler = getSensorDistanceSampler scene outray
 
-    sampleProbabilityOf (EmissionDistanceSampler (scene,origin,direction)) distance = 
-      sampleProbabilityOf distsampler distance
-      where distsampler = getEmissionDistanceSampler scene origin direction
-    {-# INLINE sampleProbabilityOf #-}
+    sampleContributionOf (SensorDistanceSampler (scene, outray)) distance = contribution
+      where contribution = endpointcontribution * edgecontribution
+            endpointcontribution = scene `sensitivityAt` endpoint
+            endpoint = outray `followFor` distance
+            edgecontribution = sampleContributionOf distsampler distance
+            distsampler = getSensorDistanceSampler scene outray
 
-  getEmissionDistanceSampler scene origin direction = UniformDepthDistanceSampleable (emitters, property, ray) where
-    emitters = sceneEmitters scene
-    property = materialEmissivity
-    ray = Ray origin direction
-  {-# INLINE getEmissionDistanceSampler #-}
+  getSensorDistanceSampler scene outray = UniformDepthDistanceSampler (scene, outray, depthclosure, pointproperty) where
+    depthclosure  = probeSensitivityClosure
+    pointproperty = sensitivityAt
 
-  newtype ScatteringDistanceSampler = ScatteringDistanceSampler (Scene,Point,Direction)
-  instance Show ScatteringDistanceSampler where
-    show (ScatteringDistanceSampler (scene,origin,Direction dir)) =
-      "ScatteringDistanceSampler @" ++ showVector3 origin ++
-      "->@" ++ showVector3 dir ++
-      "in Scene: " ++ show scene
-  instance Sampleable ScatteringDistanceSampler (Maybe Double) where
-    randomSampleFrom (ScatteringDistanceSampler (scene,origin,direction)) g =
-      randomSampleFrom distsampler g
-      where distsampler = getScatteringDistanceSampler scene origin direction
-    {-# INLINE randomSampleFrom #-}
+  newtype EmitterDistanceSampler = EmitterDistanceSampler (Scene,Ray)
+  instance Show EmitterDistanceSampler where
+    show (EmitterDistanceSampler (scene, Ray origin dir)) =
+      "EmitterDistanceSampler @" ++ showVector3 origin ++ show dir ++ " in Scene: " ++ show scene
+  instance Sampleable EmitterDistanceSampler Distance where
+    sampleProbabilityOf (EmitterDistanceSampler (scene, outray)) distance =
+        sampleProbabilityOf distsampler distance
+      where distsampler = getEmitterDistanceSampler scene outray
 
-    sampleProbabilityOf (ScatteringDistanceSampler (scene,origin,direction)) distance = 
-      sampleProbabilityOf distsampler distance
-      where distsampler = getScatteringDistanceSampler scene origin direction
-    {-# INLINE sampleProbabilityOf #-}
+    sampleFrom (EmitterDistanceSampler (scene, outray)) =
+        sampleFrom distsampler
+      where distsampler = getEmitterDistanceSampler scene outray
 
-  getScatteringDistanceSampler scene origin direction = UniformAttenuationDistanceSampleable (scatterers, property, ray) where
-    scatterers = sceneScatterers scene
-    property = materialScattering
-    ray = Ray origin direction
-  {-# INLINE getScatteringDistanceSampler #-}
+    sampleContributionOf (EmitterDistanceSampler (scene, outray)) distance = contribution
+      where contribution = endpointcontribution * edgecontribution
+            endpointcontribution = scene `emissivityAt` endpoint
+            endpoint = outray `followFor` distance
+            edgecontribution = sampleContributionOf distsampler distance
+            distsampler = getEmitterDistanceSampler scene outray
 
-  type DistanceSamplerParameters = ([Entity], Material -> Texture Double, Ray)
+  getEmitterDistanceSampler scene outray = UniformDepthDistanceSampler (scene, outray, depthclosure, pointproperty) where
+    depthclosure  = probeEmissivityClosure
+    pointproperty = emissivityAt
 
+  newtype ScattererDistanceSampler = ScattererDistanceSampler (Scene,Ray)
+  instance Show ScattererDistanceSampler where
+    show (ScattererDistanceSampler (scene, Ray origin dir)) =
+      "ScattererDistanceSampler @" ++ showVector3 origin ++ show dir ++ " in Scene: " ++ show scene
+  instance Sampleable ScattererDistanceSampler Distance where
+    sampleProbabilityOf (ScattererDistanceSampler (scene, outray)) distance =
+        sampleProbabilityOf distsampler distance
+      where distsampler = getScattererDistanceSampler scene outray
+
+    sampleFrom (ScattererDistanceSampler (scene, outray)) =
+        sampleFrom distsampler
+      where distsampler = getScattererDistanceSampler scene outray
+
+    sampleContributionOf (ScattererDistanceSampler (scene, outray)) distance = contribution
+      where contribution = endpointcontribution * edgecontribution
+            endpointcontribution = scene `scatteringAt` endpoint
+            endpoint = outray `followFor` distance
+            edgecontribution = sampleContributionOf distsampler distance
+            distsampler = getScattererDistanceSampler scene outray
+
+  getScattererDistanceSampler scene outray = UniformDepthDistanceSampler (scene, outray, depthclosure, pointproperty) where
+    depthclosure  = probeScatteringClosure
+    pointproperty = scatteringAt
+
+
+  type DistanceSamplerParameters = (Scene,
+                                    Ray,
+                                    Scene -> Ray -> (Double, Double) -> ProbeResult,
+                                    Scene -> Point -> Double)
+
+  newtype UniformDepthDistanceSampler = UniformDepthDistanceSampler DistanceSamplerParameters
+  instance Sampleable UniformDepthDistanceSampler Distance where
+    sampleProbabilityOf (UniformDepthDistanceSampler (scene,outray,depthclosure,pointproperty)) distance
+      | endpointvalue==0 = 0
+      | otherwise = --trace ("totaldepth="++show totaldepth++" ,endpointvalue="++show endpointvalue) $
+                    endpointvalue / totaldepth
+      where endpointvalue = pointproperty scene endpoint
+            endpoint = outray `followFor` distance
+            totaldepth = fromJust $ getProbeResultDepth totaldepthproberesult
+            totaldepthproberesult = depthclosure scene outray (infinity,infinity)
+
+    sampleFrom (UniformDepthDistanceSampler (scene,outray,depthclosure,pointproperty))
+      | totaldepth==0 = fail "no material ahead to sample a distance from."
+      | otherwise = do u1 <- lift getCoord
+                       let randomdepth = totaldepth * u1
+                           proberesult = probeMedia (infinity, randomdepth)
+                           distance = fromJust . getProbeResultDist $ proberesult
+                           mindist = 1e-14 -- avoids 0div-errors because of identical points
+                       return $ max mindist distance
+      where totaldepth = fromJust $ getProbeResultDepth totaldepthproberesult
+            totaldepthproberesult = probeMedia (infinity, infinity)
+            probeMedia = depthclosure scene outray
+
+    sampleContributionOf (UniformDepthDistanceSampler (scene,outray,depthclosure,pointproperty)) distance =
+        (exp (-opticaldepth))/distance^2
+      where opticaldepth = fromJust . getProbeResultDepth $ probeExtinction scene outray distance infinity
+
+
+  -- let s=SensorDistanceSampler (standardScene 0.7, fromTwoPoints (Vector3 0 0 0) (Vector3 0 0 (-1)))
+  -- runUCToMaybeSampled (sampleWithImportanceFrom s) (toStream 13) :: MaybeSampled Distance
+  {--
   newtype UniformAttenuationDistanceSampleable = UniformAttenuationDistanceSampleable DistanceSamplerParameters
   instance Sampleable UniformAttenuationDistanceSampleable (Maybe Double) where
     randomSampleFrom (UniformAttenuationDistanceSampleable (entities,materialproperty,ray)) g = do

@@ -28,8 +28,10 @@ module PIRaTE.Scene.Scene (
     opticalDepthBetween,
     probeExtinction,
     probeExtinctionClosure,
+    probeScattering,
+    probeScatteringClosure,
     probeEmission,
-    probeEmissionClosure,
+    probeEmissivityClosure,
     probeSensitivity,
     probeSensitivityClosure,
     ProbeResult,
@@ -165,7 +167,10 @@ module PIRaTE.Scene.Scene (
       sceneScatterers::[Entity],
       sceneAbsorbers::[Entity],
       sceneSensors::[Entity]
-    } deriving Show
+    }
+
+  instance Show Scene where
+    show scene = show (sceneEntities scene)
 
   -- the Bool is used to represent if the IntervalLimiter is the begin of an interval
   data IntervalLimiter a = IntervalLimiter {
@@ -326,11 +331,11 @@ module PIRaTE.Scene.Scene (
   
   -- casts a Ray through a list of entities until either a maximum optical depth
   -- or a maximum distance is reached
-  probePropertyOfEntitiesWithRay :: (Material -> Texture Double) -> [Entity] -> Ray -> Double -> Double -> ProbeResult
+  probePropertyOfEntitiesWithRay :: (Material -> Texture Double) -> [Entity] -> Ray -> Distance -> Double -> ProbeResult
   probePropertyOfEntitiesWithRay propertyof entities ray maxDist maxDepth =
     probePropertyOfEntitiesWithRayClosure propertyof entities ray (maxDist,maxDepth)
 
-  probePropertyOfEntitiesWithRayClosure :: (Material -> Texture Double) -> [Entity] -> Ray -> ((Double,Double) -> ProbeResult)
+  probePropertyOfEntitiesWithRayClosure :: (Material -> Texture Double) -> [Entity] -> Ray -> ((Distance,Double) -> ProbeResult)
   probePropertyOfEntitiesWithRayClosure propertyof entities ray = let
       refinedintervalswithtextures = disjointIntervalsWithMaterials entities ray
     in \(maxDist,maxDepth) -> (consumeIntervals propertyof ray maxDepth 0 (clipAndFilterIntervalsWithMaterial maxDist refinedintervalswithtextures))
@@ -339,7 +344,11 @@ module PIRaTE.Scene.Scene (
     probePropertyOfEntitiesWithRayClosure materialExtinction interactors ray where
       interactors = sceneInteractors scene
 
-  probeEmissionClosure scene ray =
+  probeScatteringClosure scene ray =
+    probePropertyOfEntitiesWithRayClosure materialScattering scatterers ray where
+      scatterers = sceneScatterers scene
+
+  probeEmissivityClosure scene ray =
     probePropertyOfEntitiesWithRayClosure materialEmissivity emitters ray where
       emitters = sceneEmitters scene
 
@@ -348,7 +357,8 @@ module PIRaTE.Scene.Scene (
       sensors = sceneSensors scene
 
   probeExtinction  scene ray maxdist maxdepth = probeExtinctionClosure  scene ray (maxdist,maxdepth)
-  probeEmission    scene ray maxdist maxdepth = probeEmissionClosure    scene ray (maxdist,maxdepth)
+  probeScattering  scene ray maxdist maxdepth = probeScatteringClosure  scene ray (maxdist,maxdepth)
+  probeEmission    scene ray maxdist maxdepth = probeEmissivityClosure  scene ray (maxdist,maxdepth)
   probeSensitivity scene ray maxdist maxdepth = probeSensitivityClosure scene ray (maxdist,maxdepth)
 
   depthOfBetween :: (Material -> Texture Double) -> [Entity] -> Point -> Point -> Double
