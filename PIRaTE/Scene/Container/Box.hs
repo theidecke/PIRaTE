@@ -4,9 +4,10 @@
 module PIRaTE.Scene.Container.Box where
   import Data.ACVector (Vector3(..))
   import PIRaTE.SpatialTypes
+  import PIRaTE.UtilityFunctions (infinity)
   import PIRaTE.Scene.Confineable
   import PIRaTE.MonteCarlo.Sampled
-  
+
   data Box = Box {
       corner1 :: Point,
       corner2 :: Point
@@ -32,12 +33,18 @@ module PIRaTE.Scene.Container.Box where
       | otherwise   = [(tmin,tmax)]
       where tmin = maximum [txmin,tymin,tzmin]
             tmax = minimum [txmax,tymax,tzmax]
-            (txmin,txmax) | dx >= 0   = ((x1-ox)*dxinv, (x2-ox)*dxinv)
-                          | otherwise = ((x2-ox)*dxinv, (x1-ox)*dxinv)
-            (tymin,tymax) | dy >= 0   = ((y1-oy)*dyinv, (y2-oy)*dyinv)
-                          | otherwise = ((y2-oy)*dyinv, (y1-oy)*dyinv)
-            (tzmin,tzmax) | dz >= 0   = ((z1-oz)*dzinv, (z2-oz)*dzinv)
-                          | otherwise = ((z2-oz)*dzinv, (z1-oz)*dzinv)
+            (txmin,txmax) = case compare dx 0 of
+              LT -> ((x2-ox)*dxinv, (x1-ox)*dxinv)
+              EQ -> (-infinity,infinity)
+              GT -> ((x1-ox)*dxinv, (x2-ox)*dxinv)
+            (tymin,tymax) = case compare dy 0 of
+              LT -> ((y2-oy)*dyinv, (y1-oy)*dyinv)
+              EQ -> (-infinity,infinity)
+              GT -> ((y1-oy)*dyinv, (y2-oy)*dyinv)
+            (tzmin,tzmax) = case compare dz 0 of
+              LT -> ((z2-oz)*dzinv, (z1-oz)*dzinv)
+              EQ -> (-infinity,infinity)
+              GT -> ((z1-oz)*dzinv, (z2-oz)*dzinv)
             dxinv = 1 / dx
             dyinv = 1 / dy
             dzinv = 1 / dz
