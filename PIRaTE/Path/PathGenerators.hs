@@ -10,8 +10,9 @@ module PIRaTE.Path.PathGenerators where
   import PIRaTE.MonteCarlo.Sampled
   import PIRaTE.Path.PathSamplerAtoms
 
-  data NodeType = Emi | Sca | Sen
-  type TypedRay = (Ray, NodeType)
+  data NodeType = Emi | Sca | Sen deriving Show
+  type TypedRay   = (  Ray, NodeType)
+  type TypedPoint = (Point, NodeType)
 
   newtype StupidPathGenerator = StupidPathGenerator (Scene,Double) deriving Show
   instance Sampleable StupidPathGenerator MLTState where
@@ -52,6 +53,48 @@ module PIRaTE.Path.PathGenerators where
       return $ (fromPath pathvalue) `withImportance` pathimportance
 
     sampleProbabilityOf _ _ = undefined
+
+
+  newtype SimplePathtracerPathGenerator = SimplePathtracerPathGenerator (Scene,Double) deriving Show
+  instance Sampleable SimplePathtracerPathGenerator MLTState where
+    sampleWithImportanceFrom (SimplePathtracerPathGenerator (scene, growprobability)) = do
+      sampledemissionpoint  <- sampleWithImportanceFrom (EmissionPointSampler  scene)
+      sampledsensationpoint <- sampleWithImportanceFrom (SensationPointSampler scene)
+      let emissionpoint  = sampledValue sampledemissionpoint
+          sensationpoint = sampledValue sampledsensationpoint
+          sensorinray    = Ray sensationpoint undefined
+          typedsensorinray = (sensorinray,Sen)
+      sampledscatterinrays <- samplePointRecursively scene growprobability typedsensorinray
+      let typedscatterinrays    = sampledValue sampledscatterinrays
+          scatterinrays         = map fst typedscatterinrays
+          -- finish path by connecting with the emissionpoint
+          lasttypedinray = last (typedsensorinray : typedscatterinrays)
+          scatterpoints = map rayOrigin scatterinrays
+          pathvalue = emissionpoint : reverse (sensationpoint : scatterpoints)
+          sensationpointimportance = sampledImportance sampledsensationpoint
+          emissionpointimportance  = sampledImportance sampledemissionpoint
+          scatterinraysimportance  = sampledImportance sampledscatterinrays
+          connectioncontribution = getConnectionContribution scene (Ray emissionpoint undefined, Emi) lasttypedinray
+          pathimportance = sensationpointimportance * scatterinraysimportance * connectioncontribution * emissionpointimportance
+      return $ (fromPath pathvalue) `withImportance` pathimportance
+
+    sampleProbabilityOf _ _ = undefined
+
+  samplePointRecursively :: Scene -> Double -> TypedRay -> UCToMaybeSampled [TypedRay]
+  samplePointRecursively scene growprobability typedinray1 = do
+    growdiceroll <- lift getCoord -- sample another scatteringpoint?
+    if growdiceroll < growprobability
+      then do -- yes, sample a new scatteringpoint
+        sampledscatterinray <- sampleWithImportanceFrom (RaycastingPointSampler (scene,typedinray1,Sca))
+        let scatterinray           = (sampledValue sampledscatterinray)::TypedRay
+            scatterinrayimportance = sampledImportance sampledscatterinray
+        sampledfutureinrays <- samplePointRecursively scene growprobability scatterinray
+        let futureinrays = sampledValue sampledfutureinrays
+            futureimportance = sampledImportance sampledfutureinrays
+            importance = futureimportance * scatterinrayimportance / growprobability
+        return $ (scatterinray:futureinrays) `withImportance` importance
+      else do -- no, return an empty list
+        return $ [] `withProbability` (1 - growprobability)
 
   newtype RaycastingPointSampler = RaycastingPointSampler (Scene, TypedRay, NodeType)
   instance Sampleable RaycastingPointSampler TypedRay where
