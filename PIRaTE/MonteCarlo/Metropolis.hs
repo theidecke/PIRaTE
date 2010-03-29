@@ -29,13 +29,16 @@ module PIRaTE.MonteCarlo.Metropolis where
   validSamplesAndTrees :: MetropolisDistribution a b => a -> [PerturbationTree] -> [(Sampled b, PerturbationTree)]
   validSamplesAndTrees mdist trees = filterJust (zip samples trees) where
     filterJust ((Nothing,_):sts) = filterJust sts
-    filterJust (( Just s,t):sts) = (s,t) : filterJust sts
+    filterJust (( Just s,t):sts)
+      | (sampledImportance s) > 0 = (s,t) : filterJust sts
+      | otherwise                 = filterJust sts
     samples = map (constructSampleFromTreeRoot mdist) trees
 
   metropolis :: MetropolisDistribution a b => a -> Word64 -> [Weighted b]
-  metropolis mdist seed = initialsample : evalState (sequence . repeat $ step) initialstate where
+  metropolis mdist seed = filter ((>0).weightedWeight) samples where
+    samples = initialsample : evalState (sequence . repeat $ step) initialstate
     step = metropolisStep mdist
-    initialstate = MetropolisState initialtree initialsample 0 decisions freshtrees
+    initialstate = MetropolisState initialtree initialsample' 0 decisions freshtrees
     initialsample = unitWeighing . sampledValue $ initialsample'
     freshtrees = mapSplit perturbationTreeFromGen g3
     (initialsample',initialtree) = head . validSamplesAndTrees mdist $ trees
