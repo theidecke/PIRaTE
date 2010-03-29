@@ -221,7 +221,7 @@ module PIRaTE.Path.PathSamplerAtoms where
             probeMedia = depthclosure scene outray
 
     sampleContributionOf (UniformDepthDistanceSampler (scene,outray,depthclosure,pointproperty)) distance =
-        (exp (-opticaldepth))/distance^2
+        (exp (-opticaldepth)) -- /distance^2 --cancels with geometric term in RecursivePointSampler probability
       where opticaldepth = fromJust . getProbeResultDepth $ probeExtinction scene outray distance infinity
 
 
