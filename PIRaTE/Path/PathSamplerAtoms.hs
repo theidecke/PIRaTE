@@ -5,13 +5,13 @@
 
 module PIRaTE.Path.PathSamplerAtoms where
   import Data.ACVector
-  import Data.Maybe (fromJust)
+  import Data.Maybe (fromJust,fromMaybe)
   import PIRaTE.SpatialTypes
   import PIRaTE.UtilityFunctions (infinity)
   import PIRaTE.Scene.Scene
   import PIRaTE.MonteCarlo.Sampled
-  --import Control.Applicative
-  --import Debug.Trace
+
+  import Debug.Trace
 
 
   data PointSampler = forall s . (Sampleable s Point) => PointSampler s
@@ -187,9 +187,9 @@ module PIRaTE.Path.PathSamplerAtoms where
             edgecontribution = sampleContributionOf distsampler distance
             distsampler = getScattererDistanceSampler scene outray
 
-  getScattererDistanceSampler scene outray = UniformDepthDistanceSampler (scene, outray, depthclosure, pointproperty) where
-    depthclosure  = probeScatteringClosure
-    pointproperty = scatteringAt
+  getScattererDistanceSampler scene outray = UniformAttenuationDistanceSampleable (scene, outray, depthclosure, pointproperty) where
+    depthclosure  = probeExtinctionClosure
+    pointproperty = extinctionAt
 
 
   type DistanceSamplerParameters = (Scene,
@@ -201,11 +201,10 @@ module PIRaTE.Path.PathSamplerAtoms where
   instance Sampleable UniformDepthDistanceSampler Distance where
     sampleProbabilityOf (UniformDepthDistanceSampler (scene,outray,depthclosure,pointproperty)) distance
       | endpointvalue==0 = 0
-      | otherwise = --trace ("totaldepth="++show totaldepth++" ,endpointvalue="++show endpointvalue) $
-                    endpointvalue / totaldepth
+      | otherwise = endpointvalue / totaldepth
       where endpointvalue = pointproperty scene endpoint
             endpoint = outray `followFor` distance
-            totaldepth = fromJust $ getProbeResultDepth totaldepthproberesult
+            totaldepth = fromMaybe (error "UniformDepthDistanceSampler.sampleProbabilityOf: totaldepth") $ getProbeResultDepth totaldepthproberesult
             totaldepthproberesult = depthclosure scene outray (infinity,infinity)
 
     sampleFrom (UniformDepthDistanceSampler (scene,outray,depthclosure,pointproperty))
@@ -213,16 +212,71 @@ module PIRaTE.Path.PathSamplerAtoms where
       | otherwise = do u1 <- lift getCoord
                        let randomdepth = totaldepth * u1
                            proberesult = probeMedia (infinity, randomdepth)
-                           distance = fromJust . getProbeResultDist $ proberesult
+                           distance = fromMaybe (error "UniformDepthDistanceSampler.sampleFrom: distance") . getProbeResultDist $ proberesult
                            mindist = 1e-14 -- avoids 0div-errors because of identical points
                        return $ max mindist distance
-      where totaldepth = fromJust $ getProbeResultDepth totaldepthproberesult
+      where totaldepth = fromMaybe (error "UniformDepthDistanceSampler.sampleFrom: totaldepth") $ getProbeResultDepth totaldepthproberesult
             totaldepthproberesult = probeMedia (infinity, infinity)
             probeMedia = depthclosure scene outray
 
     sampleContributionOf (UniformDepthDistanceSampler (scene,outray,depthclosure,pointproperty)) distance =
         (exp (-opticaldepth)) -- /distance^2 --cancels with geometric term in RecursivePointSampler probability
-      where opticaldepth = fromJust . getProbeResultDepth $ probeExtinction scene outray distance infinity
+      where opticaldepth = fromMaybe (error "UniformDepthDistanceSampler.sampleContributionOf: opticaldepth") . getProbeResultDepth $ probeExtinction scene outray distance infinity
+
+
+  newtype UniformAttenuationDistanceSampleable = UniformAttenuationDistanceSampleable DistanceSamplerParameters
+  instance Sampleable UniformAttenuationDistanceSampleable Distance where
+    sampleProbabilityOf (UniformAttenuationDistanceSampleable (scene,outray,depthclosure,pointproperty)) distance =
+      let endpoint = outray `followFor` distance
+          depth = fromMaybe (error "UniformAttenuationDistanceSampleable.sampleProbabilityOf: depth") . getProbeResultDepth $ depthclosure scene outray (distance, infinity)
+          endpointvalue = pointproperty scene endpoint
+      in endpointvalue * (exp (-depth))
+
+    sampleFrom (UniformAttenuationDistanceSampleable (scene,outray,depthclosure,pointproperty)) = do
+      u1 <- lift getCoord
+      let depth = negate $ log (u1::Double)
+          proberesult = depthclosure scene outray (infinity,depth)
+          mdistance = getProbeResultDist proberesult
+      case mdistance of
+        Nothing       -> fail "depth overshoot"
+        Just distance -> return distance
+
+    sampleContributionOf (UniformAttenuationDistanceSampleable (scene,outray,depthclosure,pointproperty)) distance =
+        (exp (-opticaldepth)) -- /distance^2 --cancels with geometric term in RecursivePointSampler probability
+      where opticaldepth = fromMaybe (error "UniformAttenuationDistanceSampleable.sampleContributionOf: opticaldepth") . getProbeResultDepth $ probeExtinction scene outray distance infinity
+
+  newtype UniformAvailableAttenuationDistanceSampler = UniformAvailableAttenuationDistanceSampler DistanceSamplerParameters
+  instance Sampleable UniformAvailableAttenuationDistanceSampler Distance where
+    sampleProbabilityOf (UniformAvailableAttenuationDistanceSampler
+                          (scene,outray,depthclosure,pointproperty) )
+                        distance
+      | endpointvalue==0 = 0
+      | otherwise        = endpointvalue * (exp (-endpointdepth)) / absorptionatinfinity
+      where absorptionatinfinity = (1 - (exp (-totaldepth)))
+            endpointvalue = pointproperty scene endpoint
+            endpoint = outray `followFor` distance
+            endpointdepth = fromMaybe (error "UniformAvailableAttenuationDistanceSampler.sampleProbabilityOf: endpointdepth") . getProbeResultDepth $ probeMedia (distance, infinity)
+            totaldepth    = fromMaybe (error "UniformAvailableAttenuationDistanceSampler.sampleProbabilityOf: totaldepth") . getProbeResultDepth $ probeMedia (infinity, infinity)
+            probeMedia = depthclosure scene outray
+
+    sampleFrom (UniformAvailableAttenuationDistanceSampler
+                       (scene,outray,depthclosure,pointproperty))
+      | totaldepth==0 = fail "no material ahead to sample a distance from."
+      | otherwise = do u1 <- lift getCoord
+                       let absorptionatinfinity = (1 - (exp (-totaldepth)))
+                           randomdepth = negate $ log (1 - absorptionatinfinity * (u1::Double))
+                           proberesult = probeMedia (infinity, randomdepth)
+                           distance = fromMaybe (error distanceerrormsg) . getProbeResultDist $ proberesult
+                           distanceerrormsg = "UniformAvailableAttenuationDistanceSampler.sampleFrom: distance totaldepth=" ++
+                                              show totaldepth ++ " randomdepth=" ++ show randomdepth
+                           mindist = 1e-14 -- avoids 0div-errors because of identical points
+                       return $ max mindist distance
+      where totaldepth = fromMaybe (error "UniformAvailableAttenuationDistanceSampler.sampleFrom: totaldepth") . getProbeResultDepth $ probeMedia (infinity, infinity)
+            probeMedia = depthclosure scene outray
+
+    sampleContributionOf (UniformAvailableAttenuationDistanceSampler (scene,outray,depthclosure,pointproperty)) distance =
+        (exp (-opticaldepth)) -- /distance^2 --cancels with geometric term in RecursivePointSampler probability
+      where opticaldepth = fromMaybe (error "UniformAvailableAttenuationDistanceSampler.sampleContributionOf: opticaldepth") . getProbeResultDepth $ probeExtinction scene outray distance infinity
 
 
   -- let s=SensorDistanceSampler (standardScene 0.7, fromTwoPoints (Vector3 0 0 0) (Vector3 0 0 (-1)))
