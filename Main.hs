@@ -5,6 +5,13 @@ module Main where
   import Data.ACVector
   import qualified Data.WeighedSet as WS
   import Data.List (intersperse,foldl',sortBy)
+  import Control.Monad.State
+  import Control.Monad.Maybe
+  import Control.Applicative
+  import Text.Printf (printf)
+  import System.Environment (getArgs)
+  import Control.Parallel
+  import Control.Parallel.Strategies
   import PIRaTE.SpatialTypes
   import PIRaTE.UtilityFunctions (infinity,edgeMap)
   import PIRaTE.Scene.Confineable
@@ -23,11 +30,7 @@ module Main where
   import PIRaTE.MonteCarlo.UCStream (toStream)
   import PIRaTE.Path.PathSamplerAtoms
   import PIRaTE.Path.PathGenerators
-  import Control.Monad.State
-  import Control.Monad.Maybe
-  import Control.Applicative
-  import Text.Printf (printf)
-  import System.Environment (getArgs)
+
   
   standardScene sigma = let
       emissionphasefunction   = PhaseFunction Isotropic
@@ -41,12 +44,31 @@ module Main where
       scatteringentity = entityFromContainerAndMaterials scatteringcontainer [scatteringmaterial]
       sensorcontainer  = Container $ fromCorners (Vector3 (-1) (-1) (-4.01)) (Vector3 1 1 (-3.99))
       sensormaterial = toHomogenousSensingMaterial 1.0 sensationphasefunction
-      sensorangle = 0.1 * degree
+      sensorangle = 5 * arcmin
       sensorentity  = entityFromContainerAndMaterials sensorcontainer  [sensormaterial]
       entities = [lightsourceentity,scatteringentity,sensorentity]
     in sceneFromEntities entities
 
-  testsampler = EmissionPointSampler $ standardScene 2.3
+  inhomScene sigma = let
+      emissionphasefunction   = PhaseFunction Isotropic
+      scatteringphasefunction = PhaseFunction Isotropic
+      sensationphasefunction  = (PhaseFunction $ fromApexAngle sensorangle, PathLength . mltStatePathLength)
+      lightsourcecontainer = Container $ Sphere (Vector3 0 0 0) 0.01
+      lightsourcematerial = toHomogenousEmittingMaterial 1.0 emissionphasefunction
+      lightsourceentity = entityFromContainerAndMaterials lightsourcecontainer [lightsourcematerial]
+      scatteringcontainer = Container $ Sphere (Vector3 0 0 0) 1
+      scatteringmaterial = toCustomInteractingMaterial Empty (Inhomogenous sigmafun) scatteringphasefunction
+      sigmafun = simpleDisc sigma 0.1 1.0 0.25
+      simpleDisc m eps so a = rho where
+        rho p = if s<0.01 || s>1 then 0 else c * (exp (-0.5*(z/(eps*s))^2)) / (a^2+s^2) where {z=v3y p; s=sqrt ((v3x p)^2+(v3z p)^2)}
+        c = m / ((2*pi)**1.5 * eps * (so - a*(atan (so/a))))
+      scatteringentity = entityFromContainerAndMaterials scatteringcontainer [scatteringmaterial]
+      sensorcontainer = Container $ fromCorners (Vector3 (-1) (-1) (-1.02)) (Vector3 1 1 (-1.01))
+      sensormaterial = toHomogenousSensingMaterial 1.0 sensationphasefunction
+      sensorangle = 10 * arcmin
+      sensorentity = entityFromContainerAndMaterials sensorcontainer [sensormaterial]
+      entities = [lightsourceentity, scatteringentity,sensorentity]
+    in sceneFromEntities entities
 
   newtype StupidMetropolisDistribution = StupidMetropolisDistribution (Scene,Double) deriving Show
   instance MetropolisDistribution StupidMetropolisDistribution MLTState where
@@ -69,13 +91,30 @@ module Main where
         runUCToMaybeSampled (sampleWithImportanceFrom pathgenerator) stream
       where pathgenerator = SimplePathtracerPathGenerator (scene, growprobability)
 
-  stdscene = standardScene 2.0
-  growprob = 0.5
-  smd1 = StupidMetropolisDistribution (stdscene, growprob)
-  smd2 = SimpleMetropolisDistribution (stdscene, growprob)
-  smd3 = PathTracerMetropolisDistribution (stdscene, growprob)
+  main = do
+    args <- getArgs
+    let (gridsize,n) = ((read (args!!0))::Int
+                       ,(read (args!!1))::Int)
+    let scene = inhomScene 1.0
+        growprob = 0.5
+        metropolisdistribution = PathTracerMetropolisDistribution (scene, growprob)
+        extractor = (\(w,p)->(w,(\v->(v3x v,v3y v)) . last $ p))
+        startSampleSession size seed = take size . map extractor . metropolis metropolisdistribution $ fromIntegral seed
+        sessionsize = min 5000 n --n
+        sessioncount = n `div` sessionsize
+        samplesessions = map (startSampleSession sessionsize) [1..sessioncount]
+        samples = concat (samplesessions `using` parList rdeepseq)
+    --putRadiallyBinnedPhotonCounts gridsize samples
+    putGridBinnedPhotonCounts gridsize samples
 
-  getSamples smd seed = map (\(w,p)->(w,(\v->(v3x v,v3y v)) . last $ p)) . metropolis smd $ seed
+  putGridBinnedPhotonCounts gridsize samples = do
+    let photonbincounts = binSamplesInGrid gridsize samples
+    putStrLn $ "binnedphotons=" ++ (showGrid2DForMathematica photonbincounts) ++ ";\n"
+    
+  putRadiallyBinnedPhotonCounts gridsize samples = do
+    let photonbincounts = binSamplesRadially gridsize samples
+    putStrLn $ "radialphotoncounts=" ++ (showListForMathematica showDouble photonbincounts) ++ ";\n"
+
   showSample :: (Double,(Double,Double)) -> String
   showSample (w,(x,y)) = printf "{%f,{%f,%f}}" w x y
   showDouble :: Double -> String
@@ -84,16 +123,6 @@ module Main where
   --showListForMathematica showSample . take 10 $ samples
   showGrid2DForMathematica = showListForMathematica (showListForMathematica showDouble)
 
-  getBinnedSamples seed gridsize n =
-    showGrid2DForMathematica . binSamplesInGrid gridsize . take n . getSamples smd3 $ seed
-  
-  main = do
-    args <- getArgs
-    let n = read . head $ args
-        samples = take n . getSamples smd3 $ 13
-    putRadiallyBinnedPhotonCounts 100 samples
-    --putGridBinnedPhotonCounts 101 samples
-  
   binSamplesInGrid :: Int -> [(Double, (Double,Double))] -> [[Double]]
   binSamplesInGrid n samples = let
       sampleMap f (w,s) = (w,f s)
@@ -133,13 +162,3 @@ module Main where
       considerSample ws (w,s) = WS.increaseWeightBy w ws s
       fullbins = foldl' considerSample emptybins sampleindices
     in map (WS.weightOf fullbins) (gridIndices n)
-  
-  putGridBinnedPhotonCounts gridsize samples = do
-    let photonbincounts = binSamplesInGrid gridsize samples
-    putStrLn $ "binnedphotons=" ++ (showGrid2DForMathematica photonbincounts) ++ ";\n"
-    
-  putRadiallyBinnedPhotonCounts gridsize samples = do
-    let photonbincounts = binSamplesRadially gridsize samples
-    putStrLn $ "radialphotoncounts=" ++ (showListForMathematica showDouble photonbincounts) ++ ";\n"
-
-    
