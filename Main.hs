@@ -36,15 +36,15 @@ module Main where
       emissionphasefunction   = PhaseFunction Isotropic
       scatteringphasefunction = PhaseFunction Isotropic
       sensationphasefunction  = (PhaseFunction $ fromApexAngle sensorangle, PathLength . mltStatePathLength)
-      lightsourcecontainer = Container $ Sphere (Vector3 0 0 0) 0.005
+      lightsourcecontainer = Container $ Sphere (Vector3 0 0 0) 0.001
       lightsourcematerial = toHomogenousEmittingMaterial 1.0 emissionphasefunction
       lightsourceentity = entityFromContainerAndMaterials lightsourcecontainer [lightsourcematerial]
       scatteringcontainer = Container $ Sphere (Vector3 0 0 0) 1
       scatteringmaterial = toHomogenousInteractingMaterial 0 sigma scatteringphasefunction
       scatteringentity = entityFromContainerAndMaterials scatteringcontainer [scatteringmaterial]
-      sensorcontainer  = Container $ fromCorners (Vector3 (-1) (-1) (-4.01)) (Vector3 1 1 (-3.99))
+      sensorcontainer  = Container $ fromCorners (Vector3 (-1) (-1) (-1.02)) (Vector3 1 1 (-1.01))
       sensormaterial = toHomogenousSensingMaterial 1.0 sensationphasefunction
-      sensorangle = 5 * arcmin
+      sensorangle = 25 * arcmin
       sensorentity  = entityFromContainerAndMaterials sensorcontainer  [sensormaterial]
       entities = [lightsourceentity,scatteringentity,sensorentity]
     in sceneFromEntities entities
@@ -53,7 +53,7 @@ module Main where
       emissionphasefunction   = PhaseFunction Isotropic
       scatteringphasefunction = PhaseFunction Isotropic
       sensationphasefunction  = (PhaseFunction $ fromApexAngle sensorangle, PathLength . mltStatePathLength)
-      lightsourcecontainer = Container $ Sphere (Vector3 0 0 0) 0.01
+      lightsourcecontainer = Container $ Sphere (Vector3 0 0 0) 0.001
       lightsourcematerial = toHomogenousEmittingMaterial 1.0 emissionphasefunction
       lightsourceentity = entityFromContainerAndMaterials lightsourcecontainer [lightsourcematerial]
       scatteringcontainer = Container $ Sphere (Vector3 0 0 0) 1
@@ -63,9 +63,9 @@ module Main where
         rho p = if s<0.01 || s>1 then 0 else c * (exp (-0.5*(z/(eps*s))^2)) / (a^2+s^2) where {z=v3y p; s=sqrt ((v3x p)^2+(v3z p)^2)}
         c = m / ((2*pi)**1.5 * eps * (so - a*(atan (so/a))))
       scatteringentity = entityFromContainerAndMaterials scatteringcontainer [scatteringmaterial]
-      sensorcontainer = Container $ fromCorners (Vector3 (-1) (-1) (-1.02)) (Vector3 1 1 (-1.01))
+      sensorcontainer = Container $ fromCorners (Vector3 (-1) (-0.4) (-1.02)) (Vector3 1 0.4 (-1.01))
       sensormaterial = toHomogenousSensingMaterial 1.0 sensationphasefunction
-      sensorangle = 10 * arcmin
+      sensorangle = 25 * arcmin
       sensorentity = entityFromContainerAndMaterials sensorcontainer [sensormaterial]
       entities = [lightsourceentity, scatteringentity,sensorentity]
     in sceneFromEntities entities
@@ -100,7 +100,7 @@ module Main where
         metropolisdistribution = PathTracerMetropolisDistribution (scene, growprob)
         extractor = (\(w,p)->(w,(\v->(v3x v,v3y v)) . last $ p))
         startSampleSession size seed = take size . map extractor . metropolis metropolisdistribution $ fromIntegral seed
-        sessionsize = min 5000 n --n
+        sessionsize = min 10000 n --n
         sessioncount = n `div` sessionsize
         samplesessions = map (startSampleSession sessionsize) [1..sessioncount]
         samples = concat (samplesessions `using` parList rdeepseq)
