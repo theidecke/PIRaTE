@@ -26,11 +26,11 @@ module PIRaTE.Path.PathGenerators where
           lightpath  = [emissionpoint]  -- reverse order! r2:r1:r0:[]
           sensorpath = [sensationpoint] -- reverse order! r3:r4:r5:[]
           pathvalue = (reverse lightpath) ++ sensorpath
-          connectioncontribution = getConnectionContribution scene (Ray emissionpoint undefined, Emi) (Ray sensationpoint undefined, Sen)
+          connectioncontribution = getConnectionContribution scene (Ray emissionpoint (error "error: undefined1"), Emi) (Ray sensationpoint (error "error: undefined2"), Sen)
           pathimportance = emissionimportance * connectioncontribution * sensationimportance
       return $ (fromPath pathvalue) `withImportance` pathimportance
 
-    sampleProbabilityOf _ _ = undefined
+    sampleProbabilityOf _ _ = (error "error: undefined3")
 
   --let pg = StupidPathGenerator (standardScene 0.7,0.5)
   --filter (\x->sampledImportance x > 0) . fromJust $ runUCToMaybeSampled (replicateM 10 . sampleWithImportanceFrom $ pg) (toStream 13) :: [Sampled MLTState]
@@ -40,31 +40,31 @@ module PIRaTE.Path.PathGenerators where
     sampleWithImportanceFrom (SimplePathGenerator (scene, growprobability)) = do
       sampledsensationpoint <- sampleWithImportanceFrom (SensationPointSampler scene)
       let sensationpoint = sampledValue sampledsensationpoint
-          sensorinray    = Ray sensationpoint undefined
+          sensorinray    = Ray sensationpoint (error "error: undefined4")
       sampledemissionpoint <- sampleWithImportanceFrom (RaycastingPointSampler (scene,(sensorinray,Sen),Emi))
       let (Ray emissionpoint negemissionoutdir,_) = (sampledValue sampledemissionpoint)::TypedRay
           sensorpath = [sensationpoint] -- reverse order! r1:r2:r3:[]
           pathvalue = emissionpoint : sensorpath
           emissionoutdir = negate `appliedToDirection` negemissionoutdir
-          emissiondirimportance = getScatteringContribution scene Emi (Ray emissionpoint undefined) emissionoutdir
+          emissiondirimportance = getScatteringContribution scene Emi (Ray emissionpoint (error "error: undefined5")) emissionoutdir
           sensationpointimportance = sampledImportance sampledsensationpoint
           emissionpointimportance  = sampledImportance sampledemissionpoint
           pathimportance = sensationpointimportance * emissionpointimportance * emissiondirimportance
       return $ (fromPath pathvalue) `withImportance` pathimportance
 
-    sampleProbabilityOf _ _ = undefined
+    sampleProbabilityOf _ _ = (error "error: undefined6")
 
 
-  newtype SimplePathtracerPathGenerator = SimplePathtracerPathGenerator (Scene,Double) deriving Show
+  newtype SimplePathtracerPathGenerator = SimplePathtracerPathGenerator (Scene) deriving Show
   instance Sampleable SimplePathtracerPathGenerator MLTState where
-    sampleWithImportanceFrom (SimplePathtracerPathGenerator (scene, growprobability)) = do
+    sampleWithImportanceFrom (SimplePathtracerPathGenerator scene) = do
       sampledemissionpoint  <- sampleWithImportanceFrom (EmissionPointSampler  scene)
       sampledsensationpoint <- sampleWithImportanceFrom (SensationPointSampler scene)
       let emissionpoint  = sampledValue sampledemissionpoint
           sensationpoint = sampledValue sampledsensationpoint
-          sensorinray    = Ray sensationpoint undefined
+          sensorinray    = Ray sensationpoint (error "error: undefined7")
           typedsensorinray = (sensorinray,Sen)
-      sampledscatterinrays <- samplePointRecursively scene growprobability typedsensorinray
+      sampledscatterinrays <- samplePointRecursively scene typedsensorinray
       let typedscatterinrays    = sampledValue sampledscatterinrays
           scatterinrays         = map fst typedscatterinrays
           -- finish path by connecting with the emissionpoint
@@ -74,21 +74,26 @@ module PIRaTE.Path.PathGenerators where
           sensationpointimportance = sampledImportance sampledsensationpoint
           emissionpointimportance  = sampledImportance sampledemissionpoint
           scatterinraysimportance  = sampledImportance sampledscatterinrays
-          connectioncontribution = getConnectionContribution scene (Ray emissionpoint undefined, Emi) lasttypedinray
+          connectioncontribution = getConnectionContribution scene (Ray emissionpoint (error "error: undefined8"), Emi) lasttypedinray
           pathimportance = sensationpointimportance * scatterinraysimportance * connectioncontribution * emissionpointimportance
       return $ (fromPath pathvalue) `withImportance` pathimportance
 
-    sampleProbabilityOf _ _ = undefined
+    sampleProbabilityOf _ _ = (error "error: undefined9")
 
-  samplePointRecursively :: Scene -> Double -> TypedRay -> UCToMaybeSampled [TypedRay]
-  samplePointRecursively scene growprobability typedinray1 = do
+  samplePointRecursively :: Scene -> TypedRay -> UCToMaybeSampled [TypedRay]
+  samplePointRecursively scene typedinray1 = do
     growdiceroll <- lift getCoord -- sample another scatteringpoint?
+    let scatterpoint = rayOrigin . fst $ typedinray1
+        albedo = scene `albedoAt` scatterpoint
+        growprobability = case snd typedinray1 of
+          Sca -> 0.4 * albedo
+          _   -> 0.8 -- we start on an emitter or sensor
     if growdiceroll < growprobability
       then do -- yes, sample a new scatteringpoint
         sampledscatterinray <- sampleWithImportanceFrom (RaycastingPointSampler (scene,typedinray1,Sca))
         let scatterinray           = (sampledValue sampledscatterinray)::TypedRay
             scatterinrayimportance = sampledImportance sampledscatterinray
-        sampledfutureinrays <- samplePointRecursively scene growprobability scatterinray
+        sampledfutureinrays <- samplePointRecursively scene scatterinray
         let futureinrays = sampledValue sampledfutureinrays
             futureimportance = sampledImportance sampledfutureinrays
             importance = futureimportance * scatterinrayimportance / growprobability
@@ -112,7 +117,7 @@ module PIRaTE.Path.PathGenerators where
           inray2importance = outdir1importance * distanceimportance
       return $ (inray2,nodetype2) `withImportance` inray2importance
 
-    sampleProbabilityOf _ _ = undefined
+    sampleProbabilityOf _ _ = (error "error: undefined10")
 
 
   getConnectionContribution :: Scene -> TypedRay -> TypedRay -> Double

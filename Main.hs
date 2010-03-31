@@ -31,7 +31,30 @@ module Main where
   import PIRaTE.Path.PathSamplerAtoms
   import PIRaTE.Path.PathGenerators
 
-  
+  testScene =    let cont1 = Container $ Sphere (Vector3 0.3 0 0) 0.5
+                     cont2 = Container $ Sphere (Vector3 (-0.5) 0 0) 0.3
+                     cont3 = Container $ Sphere (Vector3 0.2 0.1 (-0.15)) 0.1
+                     cont4 = Container $ Sphere (Vector3 (-0.35) (-0.7) 0.0) 0.25
+                     emissionphasefunction   = PhaseFunction Isotropic
+                     scatteringphasefunction = PhaseFunction Isotropic
+                     sensationphasefunction  = (PhaseFunction $ fromApexAngle sensorangle, PathLength . mltStatePathLength)
+                     mat1 = toHomogenousInteractingMaterial  3  4 scatteringphasefunction
+                     mat2 = toHomogenousInteractingMaterial  0  7 scatteringphasefunction
+                     mat3 = toHomogenousInteractingMaterial 40  0 scatteringphasefunction
+                     mat4 = toHomogenousInteractingMaterial  0 40 scatteringphasefunction
+                     ent1 = entityFromContainerAndMaterials cont1 [mat1]
+                     ent2 = entityFromContainerAndMaterials cont2 [mat2]
+                     ent3 = entityFromContainerAndMaterials cont3 [mat3]
+                     ent4 = entityFromContainerAndMaterials cont4 [mat4]
+                     sensorcontainer = Container $ fromCorners (Vector3 (-1) (-1) (-1.02)) (Vector3 1 1 (-1.01))
+                     sensormaterial = toHomogenousSensingMaterial 1.0 sensationphasefunction
+                     sensorangle = 1 * degree
+                     sensorentity = entityFromContainerAndMaterials sensorcontainer [sensormaterial]
+                     lightsourcecontainer = Container $ Sphere (Vector3 0 0 0) 0.01
+                     lightsourcematerial = toHomogenousEmittingMaterial 1.0 emissionphasefunction
+                     lightsourceentity = entityFromContainerAndMaterials lightsourcecontainer [lightsourcematerial]
+                 in sceneFromEntities [ent1,ent2,ent3,ent4,sensorentity,lightsourceentity]
+
   standardScene sigma = let
       emissionphasefunction   = PhaseFunction Isotropic
       scatteringphasefunction = PhaseFunction Isotropic
@@ -84,20 +107,20 @@ module Main where
         runUCToMaybeSampled (sampleWithImportanceFrom pathgenerator) stream
       where pathgenerator = SimplePathGenerator (scene, growprobability)
 
-  newtype PathTracerMetropolisDistribution = PathTracerMetropolisDistribution (Scene,Double) deriving Show
+  newtype PathTracerMetropolisDistribution = PathTracerMetropolisDistribution Scene deriving Show
   instance MetropolisDistribution PathTracerMetropolisDistribution MLTState where
     --constructSampleWithImportance :: a -> [UCStream] -> Maybe (Sampled b)
-    constructSampleWithImportance (PathTracerMetropolisDistribution (scene, growprobability)) (stream:_) =
+    constructSampleWithImportance (PathTracerMetropolisDistribution scene) (stream:_) =
         runUCToMaybeSampled (sampleWithImportanceFrom pathgenerator) stream
-      where pathgenerator = SimplePathtracerPathGenerator (scene, growprobability)
+      where pathgenerator = SimplePathtracerPathGenerator scene
 
   main = do
     args <- getArgs
     let (gridsize,n) = ((read (args!!0))::Int
                        ,(read (args!!1))::Int)
-    let scene = inhomScene 1.0
-        growprob = 0.5
-        metropolisdistribution = PathTracerMetropolisDistribution (scene, growprob)
+    let --scene = inhomScene 1.0
+        scene = testScene
+        metropolisdistribution = PathTracerMetropolisDistribution scene
         extractor = (\(w,p)->(w,(\v->(v3x v,v3y v)) . last $ p))
         startSampleSession size seed = take size . map extractor . metropolis metropolisdistribution $ fromIntegral seed
         sessionsize = min 10000 n --n

@@ -299,7 +299,7 @@ module PIRaTE.Scene.Scene (
       neededdist = remainingdepth / scalarvalue
       intervaldepth = scalarvalue * intervallength
       intervallength = b - a
-      scalarvalue = f undefined -- only works for Homogenous Materials
+      scalarvalue = f (error "error: undefined15") -- only works for Homogenous Materials
 
   discretizeInterval :: (Double->Double) -> (Double, Double) -> [(Interval, Texture Double)]
   discretizeInterval f (a,b) = gaussDiscretizer 0.01 f (a,b)

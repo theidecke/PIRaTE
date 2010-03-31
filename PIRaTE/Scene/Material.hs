@@ -62,20 +62,20 @@ module PIRaTE.Scene.Material (
 
   toCustomInteractingMaterial :: (Texture Double) -> (Texture Double) -> PhaseFunction -> Material
   toCustomInteractingMaterial kappatex sigmatex pf =
-    Material kappatex sigmatex pf mempty undefined mempty undefined
+    Material kappatex sigmatex pf mempty (error "error: undefined19") mempty (error "error: undefined20")
 
   toHomogenousEmittingMaterial :: Double -> PhaseFunction -> Material
   toHomogenousEmittingMaterial epsilon pf =
-    Material mempty mempty undefined epsilontex pftex mempty undefined
+    Material mempty mempty (error "error: undefined21") epsilontex pftex mempty (error "error: undefined22")
     where epsilontex = Homogenous epsilon
-          pftex | epsilon==0 = undefined
+          pftex | epsilon==0 = (error "error: undefined23")
                 | otherwise  = pf
           
   toHomogenousSensingMaterial :: Double -> (PhaseFunction,SensorLogger) -> Material
   toHomogenousSensingMaterial zeta sensor@(pf,sl) =
-    Material mempty mempty undefined mempty undefined zetatex wsens
+    Material mempty mempty (error "error: undefined24") mempty (error "error: undefined25") zetatex wsens
     where zetatex = Homogenous zeta
-          wsens | zeta==0   = undefined
+          wsens | zeta==0   = (error "error: undefined26")
                 | otherwise = Sensor sensor
 
   instance Show Material where
@@ -90,11 +90,11 @@ module PIRaTE.Scene.Material (
                 epsilon = (materialEmissivity m)
                 zeta = (materialSensitivity m)
                 pfscastring | isScattering m = show (materialScatteringPhaseFunction m)
-                            | otherwise      = "undefined"
+                            | otherwise      = "not defined"
                 pfemistring | isEmitting m   = show (materialEmissionDirectedness m)
-                            | otherwise      = "undefined"
+                            | otherwise      = "not defined"
                 pfsenstring | isSensing m    = show (materialSensor m)
-                            | otherwise      = "undefined"
+                            | otherwise      = "not defined"
 
   instance Monoid Double where
     mempty = 0

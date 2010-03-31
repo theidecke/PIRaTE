@@ -31,10 +31,10 @@ module PIRaTE.Scene.Sensor where
       | totalweight==0 = 0
       | otherwise = (/totalweight) . sum $ [w*(sampleProbabilityOf (sensorDirectedness sensor,inray) wout) | (sensor,w) <- wpflist]
       where totalweight = sum . snd . unzip $ wpflist
-            inray = Ray origin undefined
+            inray = Ray origin (error "error: undefined27")
 
     sampleFrom (wpf,origin) = do
       sampledphasefunction <- lift . randomWeightedChoice $ wpf
       let pf = sensorDirectedness . sampledValue $ sampledphasefunction
-          inray = Ray origin undefined
+          inray = Ray origin (error "error: undefined28")
       sampleFrom (pf,inray)

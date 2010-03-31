@@ -92,9 +92,9 @@ module PIRaTE.Path.PathSamplerAtoms where
       "EmissionDirectionSampler @" ++ showVector3 origin ++ "in Scene: " ++ show scene
   instance Sampleable EmissionDirectionSampler Direction where
     sampleProbabilityOf (EmissionDirectionSampler (scene, Ray origin _)) direction =
-      sampleProbabilityOf (scene `emissionDirectednessesAt` origin, Ray origin undefined) direction
+      sampleProbabilityOf (scene `emissionDirectednessesAt` origin, Ray origin (error "error: undefined10")) direction
     sampleFrom (EmissionDirectionSampler (scene, Ray origin _)) =
-      sampleFrom (scene `emissionDirectednessesAt` origin, Ray origin undefined)
+      sampleFrom (scene `emissionDirectednessesAt` origin, Ray origin (error "error: undefined11"))
     sampleImportanceOf (EmissionDirectionSampler _) _ = 1
     {-# INLINE sampleImportanceOf #-}
 
@@ -143,7 +143,7 @@ module PIRaTE.Path.PathSamplerAtoms where
             totaldepthproberesult = probeMedia (infinity, infinity)
             probeMedia = probeSensitivityClosure scene outray
 
-    sampleProbabilityOf _ _ = undefined
+    sampleProbabilityOf _ _ = (error "error: undefined12")
 
 
   newtype EmitterDistanceSampler = EmitterDistanceSampler (Scene,Ray)
@@ -166,7 +166,7 @@ module PIRaTE.Path.PathSamplerAtoms where
             totaldepthproberesult = probeMedia (infinity, infinity)
             probeMedia = probeEmissivityClosure scene outray
 
-    sampleProbabilityOf _ _ = undefined
+    sampleProbabilityOf _ _ = (error "error: undefined13")
 
 
   newtype ScattererDistanceSampler = ScattererDistanceSampler (Scene,Ray)
@@ -208,4 +208,4 @@ module PIRaTE.Path.PathSamplerAtoms where
                                       show td ++ " endpointdepth=" ++ show epd
 
 
-    sampleProbabilityOf _ _ = undefined
+    sampleProbabilityOf _ _ = (error "error: undefined14")
