@@ -187,7 +187,7 @@ module PIRaTE.Path.PathSamplerAtoms where
             edgecontribution = sampleContributionOf distsampler distance
             distsampler = getScattererDistanceSampler scene outray
 
-  getScattererDistanceSampler scene outray = UniformAttenuationDistanceSampleable (scene, outray, depthclosure, pointproperty) where
+  getScattererDistanceSampler scene outray = UniformAvailableAttenuationDistanceSampler (scene, outray, depthclosure, pointproperty) where
     depthclosure  = probeExtinctionClosure
     pointproperty = extinctionAt
 
