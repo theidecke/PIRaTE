@@ -56,11 +56,9 @@ module PIRaTE.Scene.Material (
 
   toHomogenousInteractingMaterial :: Double -> Double -> PhaseFunction -> Material
   toHomogenousInteractingMaterial kappa sigma pf =
-    Material kappatex sigmatex pftex mempty undefined mempty undefined
+    Material kappatex sigmatex pf mempty (error "error: undefined16") mempty (error "error: undefined17")
     where kappatex = Homogenous kappa
           sigmatex = Homogenous sigma
-          pftex | sigma==0  = undefined
-                | otherwise = pf
 
   toCustomInteractingMaterial :: (Texture Double) -> (Texture Double) -> PhaseFunction -> Material
   toCustomInteractingMaterial kappatex sigmatex pf =
