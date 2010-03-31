@@ -64,7 +64,8 @@ module PIRaTE.Path.PathGenerators where
           sensationpoint = sampledValue sampledsensationpoint
           sensorinray    = Ray sensationpoint (error "error: undefined7")
           typedsensorinray = (sensorinray,Sen)
-      sampledscatterinrays <- samplePointRecursively scene typedsensorinray
+          firstgrowprob = 0.8
+      sampledscatterinrays <- samplePointRecursively scene firstgrowprob typedsensorinray
       let typedscatterinrays    = sampledValue sampledscatterinrays
           scatterinrays         = map fst typedscatterinrays
           -- finish path by connecting with the emissionpoint
@@ -80,20 +81,22 @@ module PIRaTE.Path.PathGenerators where
 
     sampleProbabilityOf _ _ = (error "error: undefined9")
 
-  samplePointRecursively :: Scene -> TypedRay -> UCToMaybeSampled [TypedRay]
-  samplePointRecursively scene typedinray1 = do
+  samplePointRecursively :: Scene -> Double -> TypedRay -> UCToMaybeSampled [TypedRay]
+  samplePointRecursively scene growprobability typedinray1 = do
     growdiceroll <- lift getCoord -- sample another scatteringpoint?
-    let scatterpoint = rayOrigin . fst $ typedinray1
-        albedo = scene `albedoAt` scatterpoint
-        growprobability = case snd typedinray1 of
-          Sca -> 0.6 --min 0.9 albedo
-          _   -> 0.9 -- we start on an emitter or sensor
     if growdiceroll < growprobability
       then do -- yes, sample a new scatteringpoint
         sampledscatterinray <- sampleWithImportanceFrom (RaycastingPointSampler (scene,typedinray1,Sca))
         let scatterinray           = (sampledValue sampledscatterinray)::TypedRay
             scatterinrayimportance = sampledImportance sampledscatterinray
-        sampledfutureinrays <- samplePointRecursively scene scatterinray
+        let currentpoint = rayOrigin . fst $ typedinray1
+            scatterpoint = rayOrigin . fst $ scatterinray
+            opticaldepth = opticalDepthBetween scene currentpoint scatterpoint
+            attenuation = (exp . negate $ opticaldepth)
+            albedo = scene `albedoAt` scatterpoint
+            extinctionprobability = albedo * attenuation
+            nextgrowprobability = extinctionprobability
+        sampledfutureinrays <- samplePointRecursively scene nextgrowprobability scatterinray
         let futureinrays = sampledValue sampledfutureinrays
             futureimportance = sampledImportance sampledfutureinrays
             importance = futureimportance * scatterinrayimportance / growprobability
