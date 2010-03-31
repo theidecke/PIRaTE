@@ -86,7 +86,7 @@ module Main where
         rho p = if s<0.01 || s>1 then 0 else c * (exp (-0.5*(z/(eps*s))^2)) / (a^2+s^2) where {z=v3y p; s=sqrt ((v3x p)^2+(v3z p)^2)}
         c = m / ((2*pi)**1.5 * eps * (so - a*(atan (so/a))))
       scatteringentity = entityFromContainerAndMaterials scatteringcontainer [scatteringmaterial]
-      sensorcontainer = Container $ fromCorners (Vector3 (-1) (-0.4) (-1.02)) (Vector3 1 0.4 (-1.01))
+      sensorcontainer = Container $ fromCorners (Vector3 (-1) (-1) (-1.02)) (Vector3 1 1 (-1.01))
       sensormaterial = toHomogenousSensingMaterial 1.0 sensationphasefunction
       sensorangle = 25 * arcmin
       sensorentity = entityFromContainerAndMaterials sensorcontainer [sensormaterial]
@@ -118,8 +118,7 @@ module Main where
     args <- getArgs
     let (gridsize,n) = ((read (args!!0))::Int
                        ,(read (args!!1))::Int)
-    let --scene = inhomScene 1.0
-        scene = testScene
+    let scene = inhomScene 10.0
         metropolisdistribution = PathTracerMetropolisDistribution scene
         extractor = (\(w,p)->(w,(\v->(v3x v,v3y v)) . last $ p))
         startSampleSession size seed = take size . map extractor . metropolis metropolisdistribution $ fromIntegral seed

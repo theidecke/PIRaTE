@@ -86,8 +86,8 @@ module PIRaTE.Path.PathGenerators where
     let scatterpoint = rayOrigin . fst $ typedinray1
         albedo = scene `albedoAt` scatterpoint
         growprobability = case snd typedinray1 of
-          Sca -> 0.4 * albedo
-          _   -> 0.8 -- we start on an emitter or sensor
+          Sca -> 0.6 --min 0.9 albedo
+          _   -> 0.9 -- we start on an emitter or sensor
     if growdiceroll < growprobability
       then do -- yes, sample a new scatteringpoint
         sampledscatterinray <- sampleWithImportanceFrom (RaycastingPointSampler (scene,typedinray1,Sca))
