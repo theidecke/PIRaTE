@@ -194,9 +194,11 @@ module PIRaTE.Path.PathSamplerAtoms where
       | otherwise = do
           u1 <- lift getCoord
           let absorptionatinfinity = (1 - (exp (-totaldepth)))
-              endpointdepth = negate $ log (1 - absorptionatinfinity * u1)
+              endpointdepth = if totaldepth > 1e-5
+                then negate $ log (1 - absorptionatinfinity * u1)
+                else totaldepth*u1 * (1 + 0.5*totaldepth*(u1-1))
               proberesult = probeMedia (infinity, endpointdepth)
-              distance = fromMaybe (error (distanceerrormsg totaldepth endpointdepth)) . getProbeResultDist $ proberesult
+              distance = fromMaybe (error (distanceerrormsg totaldepth endpointdepth u1)) . getProbeResultDist $ proberesult
               endpoint = outray `followFor` distance
               albedo = scene `albedoAt` endpoint
               importance = albedo * absorptionatinfinity
@@ -204,8 +206,7 @@ module PIRaTE.Path.PathSamplerAtoms where
           return $ max mindist distance `withImportance` importance
       where totaldepth = fromMaybe (error "UniformAvailableAttenuationDistanceSampler.sampleWithImportanceFrom: totaldepth") . getProbeResultDepth $ probeMedia (infinity, infinity)
             probeMedia = probeExtinctionClosure scene outray
-            distanceerrormsg td epd = "UniformAvailableAttenuationDistanceSampler.sampleWithImportanceFrom: distance totaldepth=" ++
-                                      show td ++ " endpointdepth=" ++ show epd
+            distanceerrormsg td epd u = "UniformAvailableAttenuationDistanceSampler.sampleWithImportanceFrom: distance totaldepth=" ++ show td ++ " endpointdepth=" ++ show epd ++ " u1="++show u
 
 
     sampleProbabilityOf _ _ = (error "error: undefined14")
