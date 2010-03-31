@@ -12,6 +12,7 @@ module PIRaTE.Scene.Scene (
     absorptionAt,
     scatteringAt,
     extinctionAt,
+    albedoAt,
     sensitivityAt,
     emissivityAt,
     scatterPhaseFunctionsAt,
@@ -120,6 +121,14 @@ module PIRaTE.Scene.Scene (
   extinctionAt :: Scene -> Point -> Double
   extinctionAt scene = propertyAt materialExtinction (sceneInteractors scene)
   {-# INLINE extinctionAt #-}
+
+  albedoAt :: Scene -> Point -> Double
+  albedoAt scene point
+    | sigma==0 = 0
+    | otherwise = sigma/xi
+    where sigma = scatteringAt scene point
+          xi    = extinctionAt scene point
+  {-# INLINE albedoAt #-}
 
   emissivityAt :: Scene -> Point -> Double
   emissivityAt scene = propertyAt materialEmissivity (sceneEmitters scene)
