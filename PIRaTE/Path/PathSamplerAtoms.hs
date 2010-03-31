@@ -126,7 +126,7 @@ module PIRaTE.Path.PathSamplerAtoms where
     show (SensorDistanceSampler (scene, Ray origin dir)) =
       "SensorDistanceSampler @" ++ showVector3 origin ++ show dir ++ " in Scene: " ++ show scene
   instance Sampleable SensorDistanceSampler Distance where
-    sampleWithImportanceFrom (ScattererDistanceSampler (scene, outray)) = do
+    sampleWithImportanceFrom (SensorDistanceSampler (scene, outray)) = do
         sampleddistance <- sampleWithImportanceFrom distsampler
         let distance = sampledValue sampleddistance
             endpoint = outray `followFor` distance
@@ -164,7 +164,7 @@ module PIRaTE.Path.PathSamplerAtoms where
     show (EmitterDistanceSampler (scene, Ray origin dir)) =
       "EmitterDistanceSampler @" ++ showVector3 origin ++ show dir ++ " in Scene: " ++ show scene
   instance Sampleable EmitterDistanceSampler Distance where
-    sampleWithImportanceFrom (ScattererDistanceSampler (scene, outray)) = do
+    sampleWithImportanceFrom (EmitterDistanceSampler (scene, outray)) = do
         sampleddistance <- sampleWithImportanceFrom distsampler
         let distance = sampledValue sampleddistance
             endpoint = outray `followFor` distance
