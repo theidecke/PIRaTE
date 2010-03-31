@@ -270,18 +270,18 @@ module PIRaTE.Scene.Scene (
   getProbeResultDist _ = Nothing
   {-# INLINE getProbeResultDist #-}
   
-  consumeIntervals :: (Material -> Texture Double) -> Ray -> Double -> Double -> [(Interval,[Material])] -> ProbeResult
-  consumeIntervals propertyof ray maxDepth accumulatedDepth [] = MaxDistAtDepth accumulatedDepth
-  consumeIntervals propertyof ray maxDepth accumulatedDepth (((a,b), ms):rest) = case raymarchresult of
-      (MaxDistAtDepth    intervaldepth) -> consumeIntervals propertyof ray maxDepth (accumulatedDepth + intervaldepth) rest
-      (MaxDepthAtDistance maxdepthdist) -> MaxDepthAtDistance maxdepthdist
+  consumeIntervals :: Ray -> Double -> Double -> [(Interval, Texture Double)] -> ProbeResult
+  consumeIntervals ray maxDepth accumulatedDepth [] = MaxDistAtDepth accumulatedDepth
+  consumeIntervals ray maxDepth accumulatedDepth (((a,b), sf):rest)
+    | isHomogenous sf = case homogenousraymarchresult of
+        (MaxDistAtDepth    intervaldepth) -> consumeIntervals ray maxDepth (accumulatedDepth + intervaldepth) rest
+        (MaxDepthAtDistance maxdepthdist) -> MaxDepthAtDistance maxdepthdist
+    | otherwise     = consumeIntervals ray maxDepth accumulatedDepth (discretizedinhominterval++rest)
     where
-      raymarchresult = raymarcher scalarfunction (a,b) remainingDepth
-      raymarcher | all isHomogenous scalarfields = rayMarchHomogenousInterval
-                 | otherwise                     = rayMarchInhomogenousInterval
+      homogenousraymarchresult = rayMarchHomogenousInterval scalarfunction (a,b) remainingDepth
+      discretizedinhominterval = discretizeInterval scalarfunction (a,b)
+      scalarfunction s = sf `evaluatedAt` (ray `followFor` s)
       remainingDepth = maxDepth - accumulatedDepth
-      scalarfunction s = sum [sf `evaluatedAt` p | sf<-scalarfields] where p = ray `followFor` s
-      scalarfields = map propertyof ms
   
   rayMarchHomogenousInterval f (a,b) remainingdepth
     | remainingdepth > intervaldepth = MaxDistAtDepth intervaldepth
@@ -292,35 +292,23 @@ module PIRaTE.Scene.Scene (
       intervallength = b - a
       scalarvalue = f undefined -- only works for Homogenous Materials
 
-  rayMarchInhomogenousInterval f (a,b) remainingdepth =
-    --(\x-> trace (show x++"\n rem.depth:"++show remainingdepth++"\n (a,b)="++show (a,b)) x) $
-    --simpleEulerStepper 0.01 f (a,b) remainingdepth
-    simpleGaussStepper 0.01 f (a,b) remainingdepth
-  
-  simpleEulerStepper maxstep f (a,b) ygoal = stepper f b ygoal maxstep (x0, 0, f x0) where
-    stepper f xmax ymax h ics@(x,y,y')
-      | x >= xmax = MaxDistAtDepth y
-      | y >= ymax = MaxDepthAtDistance x
-      | otherwise = stepper f xmax ymax h nextics
-      where nextics = eulerStep f h ics
-            eulerStep f h (x,y,y') = (newx, y+y'*h, f newx) where newx = x+h
-    x0 = a + 0.5*(min maxstep (b-a))
+  discretizeInterval :: (Double->Double) -> (Double, Double) -> [(Interval, Texture Double)]
+  discretizeInterval f (a,b) = gaussDiscretizer 0.01 f (a,b)
 
-  simpleGaussStepper maxstep f (a,b) ygoal = stepper f b ygoal h0 (a, 0) where
-    stepper f xmax ymax h ics@(!x,!y)
-      | x + xtol >= xmax = MaxDistAtDepth y
-      | y        >= ymax = MaxDepthAtDistance x
-      | otherwise = stepper f xmax ymax h nextics
-      where nextics = gaussStep f h ics
+  gaussDiscretizer maxstep f (a,b) = edgeMap toIntMat intervalbounds where
+    toIntMat a' b' = ((a',b'), Homogenous avgf)
+      where avgf = averager a' b'
+    averager = curry (gaussAverager f)
+    intervalbounds = [a,a+h0..b]
     h0 = intervallength / (fromIntegral steps) --min maxstep intervallength
     steps = ceiling $ intervallength / maxstep 
     intervallength = b - a
-    xtol = 1e-12
 
-  gaussStep f h (!x,!y) = (x+h,y+dy) where
-    dy = (h*) . sum $ zipWith (*) gaussweights samples
-    samples = map (f . (\t->x+h*t)) gausspositions
-    (gausspositions,gaussweights) = gauss2  
+  gaussAverager f (a,b) = meanf where
+    meanf = {--(h*) .--} sum $ zipWith (*) gaussweights samples
+    samples = map (f . (\t->a+h*t)) gausspositions
+    h = b-a
+    (gausspositions,gaussweights) = gauss2
 
   gauss2 = ([0.2113248654051871, 0.7886751345948129],[0.5,0.5])
   gauss3 = ([0.1127016653792583,0.5,0.8872983346207417],[5/18,4/9,5/18])
@@ -335,10 +323,16 @@ module PIRaTE.Scene.Scene (
   probePropertyOfEntitiesWithRay propertyof entities ray maxDist maxDepth =
     probePropertyOfEntitiesWithRayClosure propertyof entities ray (maxDist,maxDepth)
 
+  matListToTexture :: (Material -> Texture Double) -> (Interval,[Material]) -> (Interval, Texture Double)
+  matListToTexture propertyof = (\(i,ms)->(i,mconcat $ map propertyof ms))
+
   probePropertyOfEntitiesWithRayClosure :: (Material -> Texture Double) -> [Entity] -> Ray -> ((Distance,Double) -> ProbeResult)
   probePropertyOfEntitiesWithRayClosure propertyof entities ray = let
       refinedintervalswithtextures = disjointIntervalsWithMaterials entities ray
-    in \(maxDist,maxDepth) -> (consumeIntervals propertyof ray maxDepth 0 (clipAndFilterIntervalsWithMaterial maxDist refinedintervalswithtextures))
+      matsToTexture = matListToTexture propertyof
+    in \(maxDist,maxDepth) ->
+         (consumeIntervals ray maxDepth 0
+                           (map matsToTexture (clipAndFilterIntervalsWithMaterial maxDist refinedintervalswithtextures)) )
   
   probeExtinctionClosure scene ray =
     probePropertyOfEntitiesWithRayClosure materialExtinction interactors ray where

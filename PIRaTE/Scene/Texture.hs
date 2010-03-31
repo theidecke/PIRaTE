@@ -12,7 +12,7 @@ module PIRaTE.Scene.Texture where
 
   instance (Show a) => Show (Texture a) where
     show            Empty = "Empty"
-    show   (Homogenous x) = show x
+    show   (Homogenous x) = "constantly "++show x
     show (Inhomogenous _) = "Inhomogenous"
 
   instance (Eq a) => Eq (Texture a) where
