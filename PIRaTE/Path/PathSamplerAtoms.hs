@@ -114,9 +114,11 @@ module PIRaTE.Path.PathSamplerAtoms where
   data DistanceSampler = forall s . (Sampleable s Distance) => DistanceSampler s
 
   instance Sampleable DistanceSampler Distance where
+    sampleWithImportanceFrom (DistanceSampler ds) = sampleWithImportanceFrom ds
     sampleProbabilityOf  (DistanceSampler ds) = sampleProbabilityOf ds
     sampleFrom           (DistanceSampler ds) = sampleFrom ds
     sampleContributionOf (DistanceSampler ds) = sampleContributionOf ds
+    sampleImportanceOf   (DistanceSampler ds) = sampleImportanceOf ds
 
 
   newtype SensorDistanceSampler = SensorDistanceSampler (Scene,Ray)
@@ -124,6 +126,16 @@ module PIRaTE.Path.PathSamplerAtoms where
     show (SensorDistanceSampler (scene, Ray origin dir)) =
       "SensorDistanceSampler @" ++ showVector3 origin ++ show dir ++ " in Scene: " ++ show scene
   instance Sampleable SensorDistanceSampler Distance where
+    sampleWithImportanceFrom (ScattererDistanceSampler (scene, outray)) = do
+        sampleddistance <- sampleWithImportanceFrom distsampler
+        let distance = sampledValue sampleddistance
+            endpoint = outray `followFor` distance
+            endpointcontribution = scene `sensitivityAt` endpoint
+            distanceimportance = sampledImportance sampleddistance
+            importance = distanceimportance * endpointcontribution
+        return $ distance `withImportance` importance
+      where distsampler = getSensorDistanceSampler scene outray
+
     sampleProbabilityOf (SensorDistanceSampler (scene, outray)) distance =
         sampleProbabilityOf distsampler distance
       where distsampler = getSensorDistanceSampler scene outray
@@ -139,6 +151,10 @@ module PIRaTE.Path.PathSamplerAtoms where
             edgecontribution = sampleContributionOf distsampler distance
             distsampler = getSensorDistanceSampler scene outray
 
+    sampleImportanceOf (SensorDistanceSampler (scene, outray)) distance =
+        sampleImportanceOf distsampler distance
+      where distsampler = getSensorDistanceSampler scene outray
+
   getSensorDistanceSampler scene outray = UniformDepthDistanceSampler (scene, outray, depthclosure, pointproperty) where
     depthclosure  = probeSensitivityClosure
     pointproperty = sensitivityAt
@@ -148,6 +164,16 @@ module PIRaTE.Path.PathSamplerAtoms where
     show (EmitterDistanceSampler (scene, Ray origin dir)) =
       "EmitterDistanceSampler @" ++ showVector3 origin ++ show dir ++ " in Scene: " ++ show scene
   instance Sampleable EmitterDistanceSampler Distance where
+    sampleWithImportanceFrom (ScattererDistanceSampler (scene, outray)) = do
+        sampleddistance <- sampleWithImportanceFrom distsampler
+        let distance = sampledValue sampleddistance
+            endpoint = outray `followFor` distance
+            endpointcontribution = scene `emissivityAt` endpoint
+            distanceimportance = sampledImportance sampleddistance
+            importance = distanceimportance * endpointcontribution
+        return $ distance `withImportance` importance
+      where distsampler = getEmitterDistanceSampler scene outray
+
     sampleProbabilityOf (EmitterDistanceSampler (scene, outray)) distance =
         sampleProbabilityOf distsampler distance
       where distsampler = getEmitterDistanceSampler scene outray
@@ -163,6 +189,10 @@ module PIRaTE.Path.PathSamplerAtoms where
             edgecontribution = sampleContributionOf distsampler distance
             distsampler = getEmitterDistanceSampler scene outray
 
+    sampleImportanceOf (EmitterDistanceSampler (scene, outray)) distance =
+        sampleImportanceOf distsampler distance
+      where distsampler = getEmitterDistanceSampler scene outray
+
   getEmitterDistanceSampler scene outray = UniformDepthDistanceSampler (scene, outray, depthclosure, pointproperty) where
     depthclosure  = probeEmissivityClosure
     pointproperty = emissivityAt
@@ -172,6 +202,16 @@ module PIRaTE.Path.PathSamplerAtoms where
     show (ScattererDistanceSampler (scene, Ray origin dir)) =
       "ScattererDistanceSampler @" ++ showVector3 origin ++ show dir ++ " in Scene: " ++ show scene
   instance Sampleable ScattererDistanceSampler Distance where
+    sampleWithImportanceFrom (ScattererDistanceSampler (scene, outray)) = do
+        sampleddistance <- sampleWithImportanceFrom distsampler
+        let distance = sampledValue sampleddistance
+            endpoint = outray `followFor` distance
+            endpointcontribution = scene `scatteringAt` endpoint
+            distanceimportance = sampledImportance sampleddistance
+            importance = distanceimportance * endpointcontribution
+        return $ distance `withImportance` importance
+      where distsampler = getScattererDistanceSampler scene outray
+
     sampleProbabilityOf (ScattererDistanceSampler (scene, outray)) distance =
         sampleProbabilityOf distsampler distance
       where distsampler = getScattererDistanceSampler scene outray
@@ -186,6 +226,10 @@ module PIRaTE.Path.PathSamplerAtoms where
             endpoint = outray `followFor` distance
             edgecontribution = sampleContributionOf distsampler distance
             distsampler = getScattererDistanceSampler scene outray
+
+    sampleImportanceOf (ScattererDistanceSampler (scene, outray)) distance =
+        sampleImportanceOf distsampler distance
+      where distsampler = getScattererDistanceSampler scene outray
 
   getScattererDistanceSampler scene outray = UniformAvailableAttenuationDistanceSampler (scene, outray, depthclosure, pointproperty) where
     depthclosure  = probeExtinctionClosure
@@ -247,6 +291,29 @@ module PIRaTE.Path.PathSamplerAtoms where
 
   newtype UniformAvailableAttenuationDistanceSampler = UniformAvailableAttenuationDistanceSampler DistanceSamplerParameters
   instance Sampleable UniformAvailableAttenuationDistanceSampler Distance where
+    sampleWithImportanceFrom (UniformAvailableAttenuationDistanceSampler
+                               (scene,outray,depthclosure,pointproperty))
+      | totaldepth==0 = fail "no material ahead to sample a distance from."
+      | otherwise = do
+          u1 <- lift getCoord
+          let absorptionatinfinity = (1 - (exp (-totaldepth)))
+              endpointdepth = negate $ log (1 - absorptionatinfinity * (u1::Double))
+              proberesult = probeMedia (infinity, endpointdepth)
+              distance = fromMaybe (error distanceerrormsg) . getProbeResultDist $ proberesult
+              distanceerrormsg = "UniformAvailableAttenuationDistanceSampler.sampleWithImportanceFrom: distance totaldepth=" ++
+                                 show totaldepth ++ " endpointdepth=" ++ show endpointdepth
+              opticaldepth = fromMaybe (error "UniformAvailableAttenuationDistanceSampler.sampleWithImportanceFrom: opticaldepth") .
+                             getProbeResultDepth $ probeExtinction scene outray distance infinity
+              contribution = exp (-opticaldepth)
+              endpoint = outray `followFor` distance
+              endpointvalue = pointproperty scene endpoint
+              probability = endpointvalue * (exp (-endpointdepth)) / absorptionatinfinity
+              importance = contribution / probability
+              mindist = 1e-14 -- avoids 0div-errors because of identical points
+          return $ max mindist distance `withImportance` importance
+      where totaldepth = fromMaybe (error "UniformAvailableAttenuationDistanceSampler.sampleWithImportanceFrom: totaldepth") . getProbeResultDepth $ probeMedia (infinity, infinity)
+            probeMedia = depthclosure scene outray
+
     sampleProbabilityOf (UniformAvailableAttenuationDistanceSampler
                           (scene,outray,depthclosure,pointproperty) )
                         distance
