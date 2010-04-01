@@ -190,7 +190,7 @@ module PIRaTE.Path.PathSamplerAtoms where
 
     --UniformAvailableAttenuationDistanceSampler
     sampleWithImportanceFrom (ScattererDistanceSampler (scene,outray))
-      | totaldepth==0 = fail "no material ahead to sample a distance from."
+      | totaldepth<1e-100 = fail "no material ahead to sample a distance from."
       | otherwise = do
           u1 <- lift getCoord
           let absorptionatinfinity = (1 - (exp (-totaldepth)))
