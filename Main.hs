@@ -116,15 +116,18 @@ module Main where
 
   main = do
     args <- getArgs
-    let (gridsize,n) = ((read (args!!0))::Int
-                       ,(read (args!!1))::Int)
+    let (startseed,gridsize,n) =
+          ((read (args!!0))::Int
+          ,(read (args!!1))::Int
+          ,(read (args!!2))::Int)
     let scene = inhomScene 10.0
+        --scene = standardScene 3.0
         metropolisdistribution = PathTracerMetropolisDistribution scene
         extractor = (\(w,p)->(w,(\v->(v3x v,v3y v)) . last $ p))
         startSampleSession size seed = take size . map extractor . metropolis metropolisdistribution $ fromIntegral seed
         sessionsize = min 10000 n --n
         sessioncount = n `div` sessionsize
-        samplesessions = map (startSampleSession sessionsize) [1..sessioncount]
+        samplesessions = map (startSampleSession sessionsize) [startseed..startseed+sessioncount-1]
         samples = concat (samplesessions `using` parList rdeepseq)
     --putRadiallyBinnedPhotonCounts gridsize samples
     putGridBinnedPhotonCounts gridsize samples

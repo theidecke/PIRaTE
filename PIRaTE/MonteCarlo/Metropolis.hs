@@ -53,7 +53,7 @@ module PIRaTE.MonteCarlo.Metropolis where
     let step = if d < freshStepProbability then freshStep else perturbationStep
     step mdist
 
-  freshStepProbability = 0.7
+  freshStepProbability = 0.5
   
   perturbationStep :: MetropolisDistribution a b => a -> State (MetropolisState b) (Weighted b)
   perturbationStep = metropolisStepFromTreeProposal getPerturbedTree

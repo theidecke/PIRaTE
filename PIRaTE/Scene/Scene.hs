@@ -302,7 +302,7 @@ module PIRaTE.Scene.Scene (
       scalarvalue = f (error "error: undefined15") -- only works for Homogenous Materials
 
   discretizeInterval :: (Double->Double) -> (Double, Double) -> [(Interval, Texture Double)]
-  discretizeInterval f (a,b) = gaussDiscretizer 0.01 f (a,b)
+  discretizeInterval f (a,b) = gaussDiscretizer 0.03 f (a,b)
 
   gaussDiscretizer maxstep f (a,b) = edgeMap toIntMat intervalbounds where
     toIntMat a' b' = ((a',b'), Homogenous avgf)
@@ -317,7 +317,7 @@ module PIRaTE.Scene.Scene (
     meanf = {--(h*) .--} sum $ zipWith (*) gaussweights samples
     samples = map (f . (\t->a+h*t)) gausspositions
     h = b-a
-    (gausspositions,gaussweights) = gauss2
+    (gausspositions,gaussweights) = gauss3
 
   gauss2 = ([0.2113248654051871, 0.7886751345948129],[0.5,0.5])
   gauss3 = ([0.1127016653792583,0.5,0.8872983346207417],[5/18,4/9,5/18])
