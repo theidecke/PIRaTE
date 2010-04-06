@@ -67,16 +67,17 @@ module Main where
       scatteringentity = entityFromContainerAndMaterials scatteringcontainer [scatteringmaterial]
       sensorcontainer  = Container $ fromCorners (Vector3 (-1) (-1) (-1.02)) (Vector3 1 1 (-1.01))
       sensormaterial = toHomogenousSensingMaterial 1.0 sensationphasefunction
-      sensorangle = 20 * arcmin
+      sensorangle = 30 * arcmin
       sensorentity  = entityFromContainerAndMaterials sensorcontainer  [sensormaterial]
       entities = [lightsourceentity,scatteringentity,sensorentity]
     in sceneFromEntities entities
+
 
   inhomScene sigma inclination = let
       emissionphasefunction   = PhaseFunction Isotropic
       scatteringphasefunction = PhaseFunction Isotropic
       sensationphasefunction  = (PhaseFunction $ fromApexAngle sensorangle, PathLength . mltStatePathLength)
-      lightsourcecontainer = Container $ Sphere (Vector3 0 0 0) 0.003
+      lightsourcecontainer = Container $ Sphere (Vector3 0 0 0) 0.0001
       lightsourcematerial = toHomogenousEmittingMaterial 1.0 emissionphasefunction
       lightsourceentity = entityFromContainerAndMaterials lightsourcecontainer [lightsourcematerial]
       scatteringcontainer = Container $ Sphere (Vector3 0 0 0) 1
@@ -97,7 +98,7 @@ module Main where
       scatteringentity = entityFromContainerAndMaterials scatteringcontainer [scatteringmaterial]
       sensorcontainer = Container $ fromCorners (Vector3 (-1) (-1) (-1.02)) (Vector3 1 1 (-1.01))
       sensormaterial = toHomogenousSensingMaterial 1.0 sensationphasefunction
-      sensorangle = 1 * arcmin
+      sensorangle = 34 * arcmin
       sensorentity = entityFromContainerAndMaterials sensorcontainer [sensormaterial]
       entities = [lightsourceentity, scatteringentity,sensorentity]
     in sceneFromEntities entities
@@ -120,11 +121,11 @@ module Main where
         runUCToMaybeSampled (sampleWithImportanceFrom pathgenerator) stream
       where pathgenerator = SimplePathtracerPathGenerator scene
 
-  newtype DirectLightPathtracerMetropolisDistribution = DirectLightPathtracerMetropolisDistribution Scene deriving Show
+  {--newtype DirectLightPathtracerMetropolisDistribution = DirectLightPathtracerMetropolisDistribution Scene deriving Show
   instance MetropolisDistribution DirectLightPathtracerMetropolisDistribution MLTState where
     constructSampleWithImportance (DirectLightPathtracerMetropolisDistribution scene) (stream:_) =
         runUCToMaybeSampled (sampleWithImportanceFrom pathgenerator) stream
-      where pathgenerator = DirectLightPathtracerPathGenerator scene
+      where pathgenerator = DirectLightPathtracerPathGenerator scene--}
 
   main = do
     args <- getArgs
@@ -132,14 +133,16 @@ module Main where
           ((read (args!!0))::Int
           ,(read (args!!1))::Int
           ,(read (args!!2))::Int
-          ,(read (args!!3))::Double)
+          ,(read (args!!3))::Double
+          )
     let --scene = testScene
         scene = inhomScene 1.0 inclination
-        --scene = standardScene 4.0
-        metropolisdistribution = DirectLightPathtracerMetropolisDistribution scene
+        --scene = standardScene 2.0
+        metropolisdistribution = PathTracerMetropolisDistribution scene
+        --metropolisdistribution = DirectLightPathtracerMetropolisDistribution scene
         extractor = (\(w,p)->(w,(\v->(v3x v,v3y v)) . last $ p))
         startSampleSession size seed = take size . map extractor . metropolis metropolisdistribution $ fromIntegral seed
-        sessionsize = min 5000 n --n
+        sessionsize = n --min 10000 n
         sessioncount = n `div` sessionsize
         samplesessions = map (startSampleSession sessionsize) [startseed..startseed+sessioncount-1]
         samples = concat (samplesessions `using` parList rdeepseq)

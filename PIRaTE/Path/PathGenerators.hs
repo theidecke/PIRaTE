@@ -81,17 +81,18 @@ module PIRaTE.Path.PathGenerators where
 
     sampleProbabilityOf _ _ = (error "error: undefined9")
 
-
+  {--
+  -- maybe biased, further testing with standardscene needed
   newtype DirectLightPathtracerPathGenerator = DirectLightPathtracerPathGenerator (Scene) deriving Show
   instance Sampleable DirectLightPathtracerPathGenerator MLTState where
     sampleWithImportanceFrom (DirectLightPathtracerPathGenerator scene) = do
       sampledsensationpoint <- sampleWithImportanceFrom (SensationPointSampler scene)
-      let sensationpoint = sampledValue sampledsensationpoint
-      sensationdir <- sampleFrom (SensationDirectionSampler (scene, Ray sensationpoint (error "DirectLightPathtracerPathGenerator sensationdir")))
-      let sensorray = Ray sensationpoint sensationdir
-          emissionproberesult = probeEmission scene sensorray infinity infinity
-          lightsourceahead = (>0) . fromJust . getProbeResultDepth $ emissionproberesult
-      let directlightprobability = if lightsourceahead then 0.95 else 0.05
+      --let sensationpoint = sampledValue sampledsensationpoint
+      --sensationdir <- sampleFrom (SensationDirectionSampler (scene, Ray sensationpoint (error "DirectLightPathtracerPathGenerator sensationdir")))
+      --let sensorray = Ray sensationpoint sensationdir
+      --    emissionproberesult = probeEmission scene sensorray infinity infinity
+      --    lightsourceahead = (>0) . fromJust . getProbeResultDepth $ emissionproberesult
+      let directlightprobability = 0.9 --if lightsourceahead then 0.9 else 0.1
       directlightdiceroll <- lift getCoord
       if directlightdiceroll < directlightprobability
         then do
@@ -109,7 +110,7 @@ module PIRaTE.Path.PathGenerators where
     sampledemissionpoint  <- sampleWithImportanceFrom (EmissionPointSampler  scene)
     let emissionpoint  = sampledValue sampledemissionpoint
         sensationpoint = sampledValue sampledsensationpoint
-        sensorinray    = Ray sensationpoint (error "error: undefined7")
+        sensorinray    = Ray sensationpoint (error "error: undefined7b")
         typedsensorinray = (sensorinray,Sen)
         firstgrowprob = 1 -- we want at least one scatterpoint to ensure there aren't multiple ways to construct direct lighting paths
     sampledscatterinrays <- samplePointRecursively scene firstgrowprob typedsensorinray
@@ -138,7 +139,7 @@ module PIRaTE.Path.PathGenerators where
         emissionpointimportance  = sampledImportance sampledemissionpoint
         pathimportance = sensationpointimportance * emissionpointimportance * emissiondirimportance
     return $ (fromPath pathvalue) `withImportance` pathimportance
-
+  --}
 
 
   samplePointRecursively :: Scene -> Double -> TypedRay -> UCToMaybeSampled [TypedRay]
