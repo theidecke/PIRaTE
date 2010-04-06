@@ -76,7 +76,7 @@ module Main where
       emissionphasefunction   = PhaseFunction Isotropic
       scatteringphasefunction = PhaseFunction Isotropic
       sensationphasefunction  = (PhaseFunction $ fromApexAngle sensorangle, PathLength . mltStatePathLength)
-      lightsourcecontainer = Container $ Sphere (Vector3 0 0 0) 0.005
+      lightsourcecontainer = Container $ Sphere (Vector3 0 0 0) 0.003
       lightsourcematerial = toHomogenousEmittingMaterial 1.0 emissionphasefunction
       lightsourceentity = entityFromContainerAndMaterials lightsourcecontainer [lightsourcematerial]
       scatteringcontainer = Container $ Sphere (Vector3 0 0 0) 1
@@ -97,7 +97,7 @@ module Main where
       scatteringentity = entityFromContainerAndMaterials scatteringcontainer [scatteringmaterial]
       sensorcontainer = Container $ fromCorners (Vector3 (-1) (-1) (-1.02)) (Vector3 1 1 (-1.01))
       sensormaterial = toHomogenousSensingMaterial 1.0 sensationphasefunction
-      sensorangle = 15 * arcmin
+      sensorangle = 1 * arcmin
       sensorentity = entityFromContainerAndMaterials sensorcontainer [sensormaterial]
       entities = [lightsourceentity, scatteringentity,sensorentity]
     in sceneFromEntities entities
