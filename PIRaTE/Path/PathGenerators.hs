@@ -3,8 +3,8 @@
 
 module PIRaTE.Path.PathGenerators where
   import Data.ACVector
-  --import Data.Maybe (fromJust)
-  import PIRaTE.UtilityFunctions (normsq)
+  import Data.Maybe (fromJust)
+  import PIRaTE.UtilityFunctions (normsq,infinity)
   import PIRaTE.SpatialTypes
   import PIRaTE.Scene.Scene
   import PIRaTE.MonteCarlo.Sampled
@@ -64,7 +64,7 @@ module PIRaTE.Path.PathGenerators where
           sensationpoint = sampledValue sampledsensationpoint
           sensorinray    = Ray sensationpoint (error "error: undefined7")
           typedsensorinray = (sensorinray,Sen)
-          firstgrowprob = 0.8
+          firstgrowprob = 0.7
       sampledscatterinrays <- samplePointRecursively scene firstgrowprob typedsensorinray
       let typedscatterinrays    = sampledValue sampledscatterinrays
           scatterinrays         = map fst typedscatterinrays
@@ -80,6 +80,66 @@ module PIRaTE.Path.PathGenerators where
       return $ (fromPath pathvalue) `withImportance` pathimportance
 
     sampleProbabilityOf _ _ = (error "error: undefined9")
+
+
+  newtype DirectLightPathtracerPathGenerator = DirectLightPathtracerPathGenerator (Scene) deriving Show
+  instance Sampleable DirectLightPathtracerPathGenerator MLTState where
+    sampleWithImportanceFrom (DirectLightPathtracerPathGenerator scene) = do
+      sampledsensationpoint <- sampleWithImportanceFrom (SensationPointSampler scene)
+      let sensationpoint = sampledValue sampledsensationpoint
+      sensationdir <- sampleFrom (SensationDirectionSampler (scene, Ray sensationpoint (error "DirectLightPathtracerPathGenerator sensationdir")))
+      let sensorray = Ray sensationpoint sensationdir
+          emissionproberesult = probeEmission scene sensorray infinity infinity
+          lightsourceahead = (>0) . fromJust . getProbeResultDepth $ emissionproberesult
+      let directlightprobability = if lightsourceahead then 0.95 else 0.05
+      directlightdiceroll <- lift getCoord
+      if directlightdiceroll < directlightprobability
+        then do
+          sampleddirectlightpath <- dlptDirectLight scene sampledsensationpoint
+          return $ sampleddirectlightpath `scaleImportanceWith` (1/directlightprobability)
+        else do
+          sampledscatterlightpath <- dlptScatteredLight scene sampledsensationpoint
+          let scatterlightprobability = 1 - directlightprobability
+          return $ sampledscatterlightpath `scaleImportanceWith` (1/scatterlightprobability)
+
+    sampleProbabilityOf _ _ = (error "error: undefined9b")
+
+
+  dlptScatteredLight scene sampledsensationpoint = do
+    sampledemissionpoint  <- sampleWithImportanceFrom (EmissionPointSampler  scene)
+    let emissionpoint  = sampledValue sampledemissionpoint
+        sensationpoint = sampledValue sampledsensationpoint
+        sensorinray    = Ray sensationpoint (error "error: undefined7")
+        typedsensorinray = (sensorinray,Sen)
+        firstgrowprob = 1 -- we want at least one scatterpoint to ensure there aren't multiple ways to construct direct lighting paths
+    sampledscatterinrays <- samplePointRecursively scene firstgrowprob typedsensorinray
+    let typedscatterinrays    = sampledValue sampledscatterinrays
+        scatterinrays         = map fst typedscatterinrays
+        -- finish path by connecting with the emissionpoint
+        lasttypedinray = last (typedsensorinray : typedscatterinrays)
+        scatterpoints = map rayOrigin scatterinrays
+        pathvalue = emissionpoint : reverse (sensationpoint : scatterpoints)
+        sensationpointimportance = sampledImportance sampledsensationpoint
+        emissionpointimportance  = sampledImportance sampledemissionpoint
+        scatterinraysimportance  = sampledImportance sampledscatterinrays
+        connectioncontribution = getConnectionContribution scene (Ray emissionpoint (error "error: undefined8b"), Emi) lasttypedinray
+        pathimportance = sensationpointimportance * scatterinraysimportance * connectioncontribution * emissionpointimportance
+    return $ (fromPath pathvalue) `withImportance` pathimportance
+
+  dlptDirectLight scene sampledsensationpoint = do
+    let sensationpoint = sampledValue sampledsensationpoint
+        sensorinray    = Ray sensationpoint (error "error: undefined4b")
+    sampledemissionpoint <- sampleWithImportanceFrom (RaycastingPointSampler (scene,(sensorinray,Sen),Emi))
+    let (Ray emissionpoint negemissionoutdir,_) = (sampledValue sampledemissionpoint)::TypedRay
+        pathvalue = [emissionpoint,sensationpoint]
+        emissionoutdir = negate `appliedToDirection` negemissionoutdir
+        emissiondirimportance = getScatteringContribution scene Emi (Ray emissionpoint (error "error: undefined5b")) emissionoutdir
+        sensationpointimportance = sampledImportance sampledsensationpoint
+        emissionpointimportance  = sampledImportance sampledemissionpoint
+        pathimportance = sensationpointimportance * emissionpointimportance * emissiondirimportance
+    return $ (fromPath pathvalue) `withImportance` pathimportance
+
+
 
   samplePointRecursively :: Scene -> Double -> TypedRay -> UCToMaybeSampled [TypedRay]
   samplePointRecursively scene growprobability typedinray1 = do
