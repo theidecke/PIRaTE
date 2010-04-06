@@ -72,7 +72,7 @@ module Main where
       entities = [lightsourceentity,scatteringentity,sensorentity]
     in sceneFromEntities entities
 
-  inhomScene sigma = let
+  inhomScene sigma inclination = let
       emissionphasefunction   = PhaseFunction Isotropic
       scatteringphasefunction = PhaseFunction Isotropic
       sensationphasefunction  = (PhaseFunction $ fromApexAngle sensorangle, PathLength . mltStatePathLength)
@@ -81,10 +81,19 @@ module Main where
       lightsourceentity = entityFromContainerAndMaterials lightsourcecontainer [lightsourcematerial]
       scatteringcontainer = Container $ Sphere (Vector3 0 0 0) 1
       scatteringmaterial = toCustomInteractingMaterial Empty (Inhomogenous sigmafun) scatteringphasefunction
-      sigmafun = simpleDisc sigma 0.1 1.0 0.25
-      simpleDisc m eps so a = rho where
-        rho p = if s<0.01 || s>1 then 0 else c * (exp (-0.5*(z/(eps*s))^2)) / (a^2+s^2) where {z=v3y p; s=sqrt ((v3x p)^2+(v3z p)^2)}
+      sigmafun = simpleDisc sigma 0.1 1.0 0.25 (pi/180*inclination)
+      simpleDisc m eps so a i = rho where
+        rho p = if s<0.01 || s>1 then 0 else c * (exp (-0.5*(z/(eps*s))^2)) / (a^2+s^2)
+          where s=sqrt (x^2+y^2)
+                x = x'
+                y =   cosi  * y' + sini * z'
+                z = (-sini) * y' + cosi * z'
+                x' = v3x p
+                y' = v3y p
+                z' = v3z p
         c = m / ((2*pi)**1.5 * eps * (so - a*(atan (so/a))))
+        cosi = cos i
+        sini = sin i
       scatteringentity = entityFromContainerAndMaterials scatteringcontainer [scatteringmaterial]
       sensorcontainer = Container $ fromCorners (Vector3 (-1) (-1) (-1.02)) (Vector3 1 1 (-1.01))
       sensormaterial = toHomogenousSensingMaterial 1.0 sensationphasefunction
@@ -116,12 +125,13 @@ module Main where
 
   main = do
     args <- getArgs
-    let (startseed,gridsize,n) =
+    let (startseed,gridsize,n,inclination) =
           ((read (args!!0))::Int
           ,(read (args!!1))::Int
-          ,(read (args!!2))::Int)
+          ,(read (args!!2))::Int
+          ,(read (args!!3))::Double)
     let --scene = testScene
-        scene = inhomScene 10.0
+        scene = inhomScene 10.0 inclination
         --scene = standardScene 4.0
         metropolisdistribution = PathTracerMetropolisDistribution scene
         extractor = (\(w,p)->(w,(\v->(v3x v,v3y v)) . last $ p))
