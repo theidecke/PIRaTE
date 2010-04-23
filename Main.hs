@@ -103,6 +103,36 @@ module Main where
       entities = [lightsourceentity, scatteringentity,sensorentity]
     in sceneFromEntities entities
 
+  benchmarkScene sigma inclination = let
+      emissionphasefunction   = PhaseFunction Isotropic
+      scatteringphasefunction = PhaseFunction Isotropic
+      sensationphasefunction  = (PhaseFunction $ fromApexAngle sensorangle, PathLength . mltStatePathLength)
+      lightsourcecontainer = Container $ Sphere (Vector3 0 0 0) 0.0001
+      lightsourcematerial = toHomogenousEmittingMaterial 1.0 emissionphasefunction
+      lightsourceentity = entityFromContainerAndMaterials lightsourcecontainer [lightsourcematerial]
+      scatteringcontainer = Container $ Sphere (Vector3 0 0 0) 1
+      scatteringmaterial = toCustomInteractingMaterial Empty (Inhomogenous sigmafun) scatteringphasefunction
+      sigmafun = benchmarkDisc sigma 0.1 1.0 0.25 (pi/180*inclination)
+      benchmarkDisc m eps so a i = rho where
+        rho p = if s<0.00025 || s>1 then 0 else c * s**(-1.5) * (exp (-4.20448*z^2 * s**(-1.125)))
+          where s=sqrt (x^2+y^2)
+                x = x'
+                y =   cosi  * y' + sini * z'
+                z = (-sini) * y' + cosi * z'
+                x' = v3x p
+                y' = v3y p
+                z' = v3z p
+        c = 0.125/15.5614*sigma
+        cosi = cos i
+        sini = sin i
+      scatteringentity = entityFromContainerAndMaterials scatteringcontainer [scatteringmaterial]
+      sensorcontainer = Container $ fromCorners (Vector3 (-1) (-1) (-1.02)) (Vector3 1 1 (-1.01))
+      sensormaterial = toHomogenousSensingMaterial 1.0 sensationphasefunction
+      sensorangle = 34 * arcmin
+      sensorentity = entityFromContainerAndMaterials sensorcontainer [sensormaterial]
+      entities = [lightsourceentity, scatteringentity,sensorentity]
+    in sceneFromEntities entities
+
   newtype StupidMetropolisDistribution = StupidMetropolisDistribution (Scene,Double) deriving Show
   instance MetropolisDistribution StupidMetropolisDistribution MLTState where
     constructSampleWithImportance (StupidMetropolisDistribution (scene, growprobability)) (stream:_) =
@@ -136,13 +166,13 @@ module Main where
           ,(read (args!!3))::Double
           )
     let --scene = testScene
-        scene = inhomScene 1.0 inclination
-        --scene = standardScene 2.0
+        --scene = benchmarkScene 5.0 inclination
+        scene = standardScene 5.0
         metropolisdistribution = PathTracerMetropolisDistribution scene
         --metropolisdistribution = DirectLightPathtracerMetropolisDistribution scene
         extractor = (\(w,p)->(w,(\v->(v3x v,v3y v)) . last $ p))
         startSampleSession size seed = take size . map extractor . metropolis metropolisdistribution $ fromIntegral seed
-        sessionsize = n --min 10000 n
+        sessionsize = min 2500 n --n
         sessioncount = n `div` sessionsize
         samplesessions = map (startSampleSession sessionsize) [startseed..startseed+sessioncount-1]
         samples = concat (samplesessions `using` parList rdeepseq)

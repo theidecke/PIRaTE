@@ -41,8 +41,8 @@ module PIRaTE.MonteCarlo.Metropolis where
     initialstate = MetropolisState initialtree initialsample' 0 decisions freshtrees
     initialsample = unitWeighing . sampledValue $ initialsample'
     freshtrees = mapSplit perturbationTreeFromGen g3
-    (initialsample',initialtree) = head . validSamplesAndTrees mdist $ trees
-    trees = mapSplit perturbationTreeFromGen g1 --possible starttrees
+    (initialsample',initialtree) = head . validSamplesAndTrees mdist $ starttrees
+    starttrees = mapSplit perturbationTreeFromGen g1 --possible starttrees
     decisions = randomUCStream g2
     (g1:g2:g3:_) = mapSplit id g
     g = pureMT seed
@@ -74,7 +74,8 @@ module PIRaTE.MonteCarlo.Metropolis where
         currentsample <- getCurrentSample
         csw <- getCurrentSampleWeight
         let newsample = fromJust mnewsample
-            a = computeAcceptanceProbability currentsample newsample
+            a = --trace =<< (printf "%f,") $
+                computeAcceptanceProbability currentsample newsample
             nsw = csw + (1-a)
         d <- getDecision
         let acceptnewsample = d<=a

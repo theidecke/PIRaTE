@@ -150,7 +150,13 @@ module PIRaTE.Path.PathGenerators where
         sampledscatterinray <- sampleWithImportanceFrom (RaycastingPointSampler (scene,typedinray1,Sca))
         let scatterinray           = (sampledValue sampledscatterinray)::TypedRay
             scatterinrayimportance = sampledImportance sampledscatterinray
-        let nextgrowprobability = 0.6
+        let nextgrowprobability = 0.5
+        {--let currentpoint = rayOrigin . fst $ typedinray1
+            starposition = Vector3 0 0 0
+            opticaldepth = --trace =<< show $
+                           opticalDepthBetween scene currentpoint starposition
+            attenuation = exp . negate $ opticaldepth
+            nextgrowprobability = min 0.999 (1-attenuation) --min 0.999 attenuation--}
         sampledfutureinrays <- samplePointRecursively scene nextgrowprobability scatterinray
         let futureinrays = sampledValue sampledfutureinrays
             futureimportance = sampledImportance sampledfutureinrays
