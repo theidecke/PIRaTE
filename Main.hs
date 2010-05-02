@@ -80,7 +80,8 @@ module Main where
       lightsourcecontainer = Container $ Sphere (Vector3 0 0 0) 0.0001
       lightsourcematerial = toHomogenousEmittingMaterial 1.0 emissionphasefunction
       lightsourceentity = entityFromContainerAndMaterials lightsourcecontainer [lightsourcematerial]
-      scatteringcontainer = Container $ Sphere (Vector3 0 0 0) 1
+      --scatteringcontainer = Container $ Sphere (Vector3 0 0 0) 1
+      scatteringcontainer = Container $ fromCorners (Vector3 (-1) (-1) (-1)) (Vector3 1 1 1)
       scatteringmaterial = toCustomInteractingMaterial Empty (Inhomogenous sigmafun) scatteringphasefunction
       sigmafun = simpleDisc sigma 0.1 1.0 0.25 (pi/180*inclination)
       simpleDisc m eps so a i = rho where
@@ -103,7 +104,7 @@ module Main where
       entities = [lightsourceentity, scatteringentity,sensorentity]
     in sceneFromEntities entities
 
-  benchmarkScene sigma inclination = let
+  benchmarkScene xi inclination = let
       emissionphasefunction   = PhaseFunction Isotropic
       scatteringphasefunction = PhaseFunction Isotropic
       sensationphasefunction  = (PhaseFunction $ fromApexAngle sensorangle, PathLength . mltStatePathLength)
@@ -111,8 +112,10 @@ module Main where
       lightsourcematerial = toHomogenousEmittingMaterial 1.0 emissionphasefunction
       lightsourceentity = entityFromContainerAndMaterials lightsourcecontainer [lightsourcematerial]
       scatteringcontainer = Container $ Sphere (Vector3 0 0 0) 1
-      scatteringmaterial = toCustomInteractingMaterial Empty (Inhomogenous sigmafun) scatteringphasefunction
-      sigmafun = benchmarkDisc sigma 0.1 1.0 0.25 (pi/180*inclination)
+      scatteringmaterial = toCustomInteractingMaterial (Inhomogenous kappafun) (Inhomogenous sigmafun) scatteringphasefunction
+      albedo = 0.65
+      kappafun = benchmarkDisc ((1-albedo)*xi) 0.1 1.0 0.25 (pi/180*inclination)
+      sigmafun = benchmarkDisc (    albedo*xi) 0.1 1.0 0.25 (pi/180*inclination)
       benchmarkDisc m eps so a i = rho where
         rho p = if s<0.00025 || s>1 then 0 else c * s**(-1.5) * (exp (-4.20448*z^2 * s**(-1.125)))
           where s=sqrt (x^2+y^2)
@@ -122,7 +125,7 @@ module Main where
                 x' = v3x p
                 y' = v3y p
                 z' = v3z p
-        c = 0.125/15.5614*sigma
+        c = 0.125/15.5614*m
         cosi = cos i
         sini = sin i
       scatteringentity = entityFromContainerAndMaterials scatteringcontainer [scatteringmaterial]
@@ -165,12 +168,12 @@ module Main where
           ,(read (args!!2))::Int
           ,(read (args!!3))::Double
           )
-    let tau = 10.0
+    let tau = 3.0
         averagescatternodecount = min 30 $ max 1 tau
         --scene = testScene
         --scene = benchmarkScene tau inclination
-        --scene = inhomScene tau inclination
-        scene = standardScene tau
+        scene = inhomScene 20 inclination
+        --scene = standardScene tau
         metropolisdistribution = PathTracerMetropolisDistribution (scene, averagescatternodecount)
         pixelcoordinateextractor = (\(w,p)->(w,(\v->(v3x v,v3y v)) . last $ p))
         pathextractor = id
