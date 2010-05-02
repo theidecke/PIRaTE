@@ -8,6 +8,8 @@
 
 module Data.ACVector where
 
+import Control.Parallel.Strategies
+
 {- | The type of @Vector@ fields. -}
 type Scalar = Double
 
@@ -136,6 +138,8 @@ instance Fractional Vector3 where
   (/) = vzip (/)
   recip = vmap recip
   fromRational r = let s = fromRational r in fromScalar s
+
+instance NFData Vector3
 
 {- |
   Takes the /cross product/ of two [3D] vectors. Again, from highschool

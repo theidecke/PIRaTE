@@ -145,11 +145,11 @@ module Main where
         runUCToMaybeSampled (sampleWithImportanceFrom pathgenerator) stream
       where pathgenerator = SimplePathGenerator (scene, growprobability)
 
-  newtype PathTracerMetropolisDistribution = PathTracerMetropolisDistribution Scene deriving Show
+  newtype PathTracerMetropolisDistribution = PathTracerMetropolisDistribution (Scene,Double) deriving Show
   instance MetropolisDistribution PathTracerMetropolisDistribution MLTState where
-    constructSampleWithImportance (PathTracerMetropolisDistribution scene) (stream:_) =
+    constructSampleWithImportance (PathTracerMetropolisDistribution (scene, avgscatternodecount)) (stream:_) =
         runUCToMaybeSampled (sampleWithImportanceFrom pathgenerator) stream
-      where pathgenerator = SimplePathtracerPathGenerator scene
+      where pathgenerator = SimplePathtracerPathGenerator (scene, avgscatternodecount)
 
   {--newtype DirectLightPathtracerMetropolisDistribution = DirectLightPathtracerMetropolisDistribution Scene deriving Show
   instance MetropolisDistribution DirectLightPathtracerMetropolisDistribution MLTState where
@@ -165,12 +165,16 @@ module Main where
           ,(read (args!!2))::Int
           ,(read (args!!3))::Double
           )
-    let --scene = testScene
-        --scene = benchmarkScene 5.0 inclination
-        scene = standardScene 5.0
-        metropolisdistribution = PathTracerMetropolisDistribution scene
-        --metropolisdistribution = DirectLightPathtracerMetropolisDistribution scene
-        extractor = (\(w,p)->(w,(\v->(v3x v,v3y v)) . last $ p))
+    let tau = 10.0
+        averagescatternodecount = min 30 $ max 1 tau
+        --scene = testScene
+        --scene = benchmarkScene tau inclination
+        --scene = inhomScene tau inclination
+        scene = standardScene tau
+        metropolisdistribution = PathTracerMetropolisDistribution (scene, averagescatternodecount)
+        pixelcoordinateextractor = (\(w,p)->(w,(\v->(v3x v,v3y v)) . last $ p))
+        pathextractor = id
+        extractor = pixelcoordinateextractor--pathextractor
         startSampleSession size seed = take size . map extractor . metropolis metropolisdistribution $ fromIntegral seed
         sessionsize = min 2500 n --n
         sessioncount = n `div` sessionsize
@@ -178,6 +182,7 @@ module Main where
         samples = concat (samplesessions `using` parList rdeepseq)
     --putRadiallyBinnedPhotonCounts gridsize samples
     putGridBinnedPhotonCounts gridsize samples
+    --putWeightedPaths samples
 
   putGridBinnedPhotonCounts gridsize samples = do
     let photonbincounts = binSamplesInGrid gridsize samples
@@ -186,6 +191,9 @@ module Main where
   putRadiallyBinnedPhotonCounts gridsize samples = do
     let photonbincounts = binSamplesRadially gridsize samples
     putStrLn $ "radialphotoncounts=" ++ (showListForMathematica showDouble photonbincounts) ++ ";\n"
+  
+  putWeightedPaths wpaths = do
+    putStrLn $ "weightedpaths=" ++ (showListForMathematica showWeightedPath wpaths) ++ ";\n"
 
   showSample :: (Double,(Double,Double)) -> String
   showSample (w,(x,y)) = printf "{%f,{%f,%f}}" w x y
@@ -194,6 +202,8 @@ module Main where
   showListForMathematica showElement xs = "{"++ concat (intersperse "," (map showElement xs)) ++ "}"
   --showListForMathematica showSample . take 10 $ samples
   showGrid2DForMathematica = showListForMathematica (showListForMathematica showDouble)
+  showPath = showListForMathematica showVector3
+  showWeightedPath (w,p) = "{"++showDouble w++","++showPath p++"}"
 
   binSamplesInGrid :: Int -> [(Double, (Double,Double))] -> [[Double]]
   binSamplesInGrid n samples = let

@@ -65,7 +65,10 @@ module PIRaTE.MonteCarlo.UCStream (
   perturbUCStream :: Perturbation -> UCStream -> UCStream -> UCStream
   perturbUCStream p cs rs = evalState (mapM p cs) rs
 
-  defaultPerturbation = perturbationFactory (expPerturbation 0.001 0.05)
+  --defaultPerturbation = perturbationFactory (expPerturbation 0.001 0.04)
+  --defaultPerturbation = perturbationFactory (expPerturbation 0.002 0.02)
+  --defaultPerturbation = perturbationFactory (expPerturbation 0.001 0.02)
+  defaultPerturbation = perturbationFactory (expPerturbation 0.0005 0.01)
   --defaultPerturbation = perturbationFactory (perturbation2 2.0 0.05)
 
   expPerturbation :: Double -> Double -> Double -> Double

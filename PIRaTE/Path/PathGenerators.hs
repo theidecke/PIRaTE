@@ -9,6 +9,8 @@ module PIRaTE.Path.PathGenerators where
   import PIRaTE.Scene.Scene
   import PIRaTE.MonteCarlo.Sampled
   import PIRaTE.Path.PathSamplerAtoms
+  
+  import Debug.Trace
 
   data NodeType = Emi | Sca | Sen deriving Show
   type TypedRay   = (  Ray, NodeType)
@@ -55,23 +57,24 @@ module PIRaTE.Path.PathGenerators where
     sampleProbabilityOf _ _ = (error "error: undefined6")
 
 
-  newtype SimplePathtracerPathGenerator = SimplePathtracerPathGenerator (Scene) deriving Show
+  newtype SimplePathtracerPathGenerator = SimplePathtracerPathGenerator (Scene,Double) deriving Show
   instance Sampleable SimplePathtracerPathGenerator MLTState where
-    sampleWithImportanceFrom (SimplePathtracerPathGenerator scene) = do
+    sampleWithImportanceFrom (SimplePathtracerPathGenerator (scene,avgscatternodecount)) = do
       sampledemissionpoint  <- sampleWithImportanceFrom (EmissionPointSampler  scene)
       sampledsensationpoint <- sampleWithImportanceFrom (SensationPointSampler scene)
       let emissionpoint  = sampledValue sampledemissionpoint
           sensationpoint = sampledValue sampledsensationpoint
           sensorinray    = Ray sensationpoint (error "error: undefined7")
           typedsensorinray = (sensorinray,Sen)
-          firstgrowprob = 0.7
-      sampledscatterinrays <- samplePointRecursively scene firstgrowprob typedsensorinray
+          firstgrowprob = avgscatternodecount / (avgscatternodecount + 1)
+      sampledscatterinrays <- samplePointRecursively avgscatternodecount scene firstgrowprob typedsensorinray
       let typedscatterinrays    = sampledValue sampledscatterinrays
           scatterinrays         = map fst typedscatterinrays
           -- finish path by connecting with the emissionpoint
           lasttypedinray = last (typedsensorinray : typedscatterinrays)
           scatterpoints = map rayOrigin scatterinrays
-          pathvalue = emissionpoint : reverse (sensationpoint : scatterpoints)
+          pathvalue = --(\x -> trace (show . length $ x) x) $
+                      emissionpoint : reverse (sensationpoint : scatterpoints)
           sensationpointimportance = sampledImportance sampledsensationpoint
           emissionpointimportance  = sampledImportance sampledemissionpoint
           scatterinraysimportance  = sampledImportance sampledscatterinrays
@@ -142,22 +145,22 @@ module PIRaTE.Path.PathGenerators where
   --}
 
 
-  samplePointRecursively :: Scene -> Double -> TypedRay -> UCToMaybeSampled [TypedRay]
-  samplePointRecursively scene growprobability typedinray1 = do
+  samplePointRecursively :: Double -> Scene -> Double -> TypedRay -> UCToMaybeSampled [TypedRay]
+  samplePointRecursively avgscatternodecount scene growprobability typedinray1 = do
     growdiceroll <- lift getCoord -- sample another scatteringpoint?
     if growdiceroll < growprobability
       then do -- yes, sample a new scatteringpoint
         sampledscatterinray <- sampleWithImportanceFrom (RaycastingPointSampler (scene,typedinray1,Sca))
         let scatterinray           = (sampledValue sampledscatterinray)::TypedRay
             scatterinrayimportance = sampledImportance sampledscatterinray
-        let nextgrowprobability = 0.5
+        let nextgrowprobability = avgscatternodecount / (avgscatternodecount + 1)
         {--let currentpoint = rayOrigin . fst $ typedinray1
             starposition = Vector3 0 0 0
             opticaldepth = --trace =<< show $
                            opticalDepthBetween scene currentpoint starposition
             attenuation = exp . negate $ opticaldepth
             nextgrowprobability = min 0.999 (1-attenuation) --min 0.999 attenuation--}
-        sampledfutureinrays <- samplePointRecursively scene nextgrowprobability scatterinray
+        sampledfutureinrays <- samplePointRecursively avgscatternodecount scene nextgrowprobability scatterinray
         let futureinrays = sampledValue sampledfutureinrays
             futureimportance = sampledImportance sampledfutureinrays
             importance = futureimportance * scatterinrayimportance / growprobability
